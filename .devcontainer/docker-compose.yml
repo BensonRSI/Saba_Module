@@ -11,4 +11,10 @@ services:
     command: sleep infinity
     volumes:
       - ..:/workspace
+      - '/dev/bus/usb:/dev/bus/usb'
+    devices:
+      #- '/dev/bus/usb:/dev/bus/usb'
+      - '/sys/bus/usb/devices:/sys/bus/usb/devices'
+      - '/sys/devices:/sys/devices'
+    privileged : true
  

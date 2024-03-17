@@ -2,6 +2,7 @@ FROM mcr.microsoft.com/vscode/devcontainers/base:ubuntu-22.04
 
 # To prevent interactive shells
 ENV DEBIAN_FRONTEND=noninteractive
+ENV UDEV=1
 
 # hadolint ignore=DL3008,DL3009
 RUN apt-get update && \
@@ -21,6 +22,9 @@ ENV LANG en_US.UTF-8
 ENV LANGUAGE en_US.UTF-8
 ENV PICO_SDK_URL "https://github.com/raspberrypi/pico-sdk.git"
 ENV PICO_SDK_PATH "/submodules/pico-sdk"
+
+ENV PICO_FLASHTOOL_URL "https://github.com/raspberrypi/picotool.git"
+ENV PICO_FLASHTOOL_PATH "/submodules/picotool"
 
 # Set timezone inside Docker container
 ENV TZ=UTC

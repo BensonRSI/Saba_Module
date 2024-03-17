@@ -16,7 +16,8 @@ apt-get install -y --no-install-recommends \
   cmake \
   gcc-arm-none-eabi \
   libnewlib-arm-none-eabi \
-  libstdc++-arm-none-eabi-newlib 
+  libstdc++-arm-none-eabi-newlib \
+  libusb-1.0-0-dev
   
 apt-get clean
 rm -rf /var/lib/apt/lists/*
@@ -34,5 +35,13 @@ else
     git clone --depth 1 --recurse-submodules --shallow-submodules ${PICO_SDK_URL} ${PICO_SDK_PATH}
 fi
 
- 
+if [[ -d ${PICO_FLASHTOOL_PATH} ]]; then
+    cd ${PICO_FLASHTOOL_PATH}
+    git pull 
+    git submodule update
+else    
+    mkdir -p ${PICO_FLASHTOOL_PATH}
+    git clone --depth 1 --recurse-submodules --shallow-submodules ${PICO_FLASHTOOL_URL} ${PICO_FLASHTOOL_PATH}
+fi
 
+ 

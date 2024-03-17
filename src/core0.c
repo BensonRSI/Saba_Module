@@ -16,12 +16,10 @@
 #include <hardware/clocks.h>
 
 #include "common.h"
-
-#include "bus.h"
-
-extern void system_trap();
+#include "getaline.h"
 
 bool console_crlf_enabled;
+void debug_clocks();
 
 void console_set_crlf(bool enable)
 {
@@ -31,21 +29,38 @@ void console_set_crlf(bool enable)
 
 void console_rp2040()
 {
-   int in;
+   char *in;
    bool leave = false;
 
-   in = toupper(getchar());
-   switch (in)
+   in = getaline();
+   switch (in[0])
    {
+     case 'a':
+         printf("Doppeldoe\n");
+         break;
+     case 'c':
+         debug_clocks();
+         break;
+
    default:
       break;
    }
 }
+void welcome()
+{
 
+   printf("\n\nWelcome to the SABA Videoplay Module Emulator\n");
+   printf("Made by the mighty wizard of TRSI in 2024\n");
+   printf("Coding : PeiselUlli , Benson, SvOlli\n");
+   printf("HW-Design: Benson\n\n");
+}
 void console_run()
 {
    multicore_lockout_victim_init();
 
+   welcome();
+   debug_clocks();
+   getaline_init();
    for (;;)
    {
       console_rp2040();

@@ -14,8 +14,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-// #include "../rp2040_purple.h"
-
 #include <pico/binary_info.h>
 #include <pico/multicore.h>
 #include <pico/platform.h>
@@ -26,9 +24,6 @@
 #include "common.h"
 
 #include "bus.h"
-#if 0
-#include "gpio_oc.h"
-#endif
 
 uint16_t trace_mem[0x10000];
 
@@ -46,29 +41,24 @@ static inline void bus_init()
    gpio_set_dir_out_masked(DB_OE_MASK | DB_DIR_MASK);
 }
 
+void system_init()
+{
+   memset(trace_mem, 0x00, sizeof(trace_mem));
+}
+
 /******************************************************************************
  * public functions
  ******************************************************************************/
 void bus_run()
 {
-   uint16_t trace_counter = 0;
+   uint16_t trace_counter = 0; // Modulo has fit to size of tracemem !
    bus_init();
    system_init();
-   system_reboot();
-
+   
    // when not run trace loop forever
    for (;;)
    {
       // Fetch everything as fast as possible and put it to the tracemem
       trace_mem[trace_counter++] = (uint16_t)(gpio_get_all() & 0xffff);
    }
-}
-
-void system_init()
-{
-   memset(trace_mem, 0x00, sizeof(trace_mem) * sizeof(uint32_t));
-}
-
-void system_reboot()
-{
-}
+} 
