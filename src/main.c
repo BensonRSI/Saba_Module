@@ -1,10 +1,8 @@
 /**
- * Copyright (c) 2023 Sven Oliver "SvOlli" Moll
- *
+ * Copyright (c) 2024 Benson ( Olli )
  * SPDX-License-Identifier: GPL-3.0-or-later
  *
- * This program implements Apple Computer I emulation
- * for the Sorbus Computer
+ *  This is part of the Saba_Module replacement for the Saba Videoplay console
  */
 
 #include <time.h>

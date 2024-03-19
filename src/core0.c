@@ -1,10 +1,8 @@
 /**
- * Copyright (c) 2023 Sven Oliver "SvOlli" Moll
- *
+ * Copyright (c) 2024 Benson ( Olli )
  * SPDX-License-Identifier: GPL-3.0-or-later
  *
- * This program implements a Native custom platform
- * for the Sorbus Computer
+ *  This is part of the Saba_Module replacement for the Saba Videoplay console
  */
 
 #include <ctype.h>
@@ -35,12 +33,12 @@ void console_rp2040()
    in = getaline();
    switch (in[0])
    {
-     case 'a':
-         printf("Doppeldoe\n");
-         break;
-     case 'c':
-         debug_clocks();
-         break;
+   case 'a':
+      printf("Doppeldoe\n");
+      break;
+   case 'c':
+      debug_clocks();
+      break;
 
    default:
       break;

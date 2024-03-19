@@ -1,7 +1,8 @@
 /**
- * Copyright (c) 2023 SvOlli
- *
+ * Copyright (c) 2024 Benson ( Olli )
  * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ *  This is part of the Saba_Module replacement for the Saba Videoplay console
  */
 
 #include "pico/stdlib.h"
@@ -13,30 +14,27 @@
 #define ROMC_SHIFT 8
 
 #define WRITE_SHIFT 13
-#define WRITE_MASK 1<<WRITE_SHIFT
+#define WRITE_MASK 1 << WRITE_SHIFT
 
 #define PHI_SHIFT 14
-#define PHI_MASK 1<<PHI_SHIFT
+#define PHI_MASK 1 << PHI_SHIFT
 
 #define IRQ_IN_SHIFT 15
-#define IRQ_IN_MASK 1<<IRQ_IN_SHIFT
+#define IRQ_IN_MASK 1 << IRQ_IN_SHIFT
 
 #define IRQ_OUT_SHIFT 28
-#define IRQ_OUT_MASK 1<<IRQ_OUT_SHIFT
-
+#define IRQ_OUT_MASK 1 << IRQ_OUT_SHIFT
 
 #define DB_OE_SHIFT 16
-#define DB_OE_MASK 1<<DB_OE_SHIFT
+#define DB_OE_MASK 1 << DB_OE_SHIFT
 
 #define DB_OE_ENABLED 0
 #define DB_OE_DISABLED 1
 
 #define DB_DIR_SHIFT 17
-#define DB_DIR_MASK 1<<DB_OE_SHIFT
+#define DB_DIR_MASK 1 << DB_OE_SHIFT
 
 #define DB_DIR_IN 1
 #define DB_DIR_OUT 0
 
-
 void bus_run();
-

@@ -1,10 +1,8 @@
 /**
- * Copyright (c) 2023 Sven Oliver "SvOlli" Moll
- *
+ * Copyright (c) 2024 Benson ( Olli )
  * SPDX-License-Identifier: GPL-3.0-or-later
  *
- * This program implements a Native custom platform
- * for the Sorbus Computer
+ *  This is part of the Saba_Module replacement for the Saba Videoplay console
  */
 
 #include <ctype.h>
@@ -54,11 +52,11 @@ void bus_run()
    uint16_t trace_counter = 0; // Modulo has fit to size of tracemem !
    bus_init();
    system_init();
-   
+
    // when not run trace loop forever
    for (;;)
    {
       // Fetch everything as fast as possible and put it to the tracemem
       trace_mem[trace_counter++] = (uint16_t)(gpio_get_all() & 0xffff);
    }
-} 
+}
