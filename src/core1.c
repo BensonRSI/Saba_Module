@@ -52,11 +52,19 @@ void bus_run()
    uint16_t trace_counter = 0; // Modulo has fit to size of tracemem !
    bus_init();
    system_init();
+   uint16_t clock_in;
 
+   do
+   {
+      clock_in = gpio_get_all() & 0xffff;
+   } while (clock_in & (1 << 13) == 0);
+   // wait for the first write pulse
    // when not run trace loop forever
-   for (;;)
+   do
    {
       // Fetch everything as fast as possible and put it to the tracemem
       trace_mem[trace_counter++] = (uint16_t)(gpio_get_all() & 0xffff);
-   }
+   } while (trace_counter);
+   while (1)
+      ;
 }

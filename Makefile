@@ -25,16 +25,21 @@ all: $(PICO_SDK_PATH)/README.md
 	cmake -S $(SRC_DIR) -B $(BUILD_DIR) $(EXTRA_CMAKE_ARGS)
 	make -C $(BUILD_DIR) -j$(JOBS) && echo "\nbuild was successful\n"
 
-go:	/usr/local/bin/picotool all
+go:	/usr/local/bin/picotool all	
 	picotool load $(DEFAULT_TARGET)
+	picotool reboot
+
+boot: /usr/local/bin/picotool 
+	picotool reboot -f
 
 log: $(PICO_SDK_PATH)/README.md
 	cmake -S $(SRC_DIR) -B $(BUILD_DIR) -DCMAKE_VERBOSE_MAKEFILE=ON $(EXTRA_CMAKE_ARGS) 2>&1 | tee cmake.log
-	make -C $(BUILD_DIR) -j$(JOBS) 2>&1 | tee make.log
+	make VERBOSE=1 -C $(BUILD_DIR) -j1 2>&1 | tee make.log
 
 clean:
-	make -C $(BUILD_DIR) clean
-	rm -f $(RELEASE_ARCHIVE) cmake.log make.log
+	make -C $(BUILD_DIR) clean	
+	rm -rf $(RELEASE_ARCHIVE) cmake.log make.log $(BUILD_DIR)/CMakeFiles
+	cmake -S $(SRC_DIR) -B $(BUILD_DIR) $(EXTRA_CMAKE_ARGS) 
 
 /usr/local/bin/picotool: 
 	cmake -S $(PICO_FLASHTOOL_PATH) -B $(BUILD_TOOL_DIR)

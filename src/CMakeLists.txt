@@ -22,6 +22,14 @@ endfunction()
 # self-hosted tools to e.g. convert binary to text data
 #add_subdirectory(tools)
 
+add_library(mcurses
+   mcurses/src/mcurses.c
+   mcurses/src/hexedit.c
+   )
+target_include_directories(mcurses
+   PUBLIC mcurses/src
+   )
+
 # eprom_emulator: simulate an Eprom, to load games from flash
 add_executable(eprom_emulator
    main.c
@@ -29,7 +37,9 @@ add_executable(eprom_emulator
    core1.c
    getaline.c
    )
+   
 target_link_libraries(eprom_emulator
+   mcurses
    pico_stdlib
    pico_multicore
    )
