@@ -15,9 +15,27 @@
 
 #include "common.h"
 #include "getaline.h"
+#include "mcurses.h"
+
+extern uint16_t memory[0x10000];
 
 bool console_crlf_enabled;
 void debug_clocks();
+
+// default functions are RAM access functons by pointers
+uint8_t peek32Memory(uint32_t address)
+{
+   uint8_t *p;
+   return memory[address];
+}
+void poke32Memory(uint32_t address, uint8_t value)
+{
+   uint8_t *p;
+   memory[address] = value;
+}
+
+uint8_t (*FunctionPointer_read32Memory)(uint32_t address) = peek32Memory;              // set default function
+void (*FunctionPointer_write32Memory)(uint32_t address, uint8_t value) = poke32Memory; // set default function
 
 void console_set_crlf(bool enable)
 {
@@ -35,6 +53,10 @@ void console_rp2040()
    {
    case 'a':
       printf("Doppeldoe\n");
+      break;
+   case 'h':
+      hexedit(0);
+      clear();
       break;
    case 'c':
       debug_clocks();
@@ -55,6 +77,12 @@ void welcome()
 void console_run()
 {
    multicore_lockout_victim_init();
+   // init mcurses
+   setFunction_putchar(putchar); // putchar_raw
+   setFunction_getchar(getchar); // putchar_raw
+   setFunction_readMemory(FunctionPointer_read32Memory);
+   setFunction_writeMemory(FunctionPointer_write32Memory);
+   initscr();
 
    welcome();
    debug_clocks();
