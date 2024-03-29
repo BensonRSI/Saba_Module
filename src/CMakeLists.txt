@@ -9,7 +9,7 @@ endif()
 set(PICO_BOARD_HEADER_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/rp2040")
 set(PICO_BOARD "pico")
 include(pico_sdk_import.cmake)
-project(saba_module)
+project(saba_module C CXX ASM)
 # initialize the Raspberry Pi Pico SDK
 pico_sdk_init()
 
@@ -30,12 +30,16 @@ target_include_directories(mcurses
    PUBLIC mcurses/src
    )
 
+set_property(SOURCE modul/romc.S APPEND PROPERTY LANGUAGE ASM )
+
+
 # eprom_emulator: simulate an Eprom, to load games from flash
 add_executable(eprom_emulator
    main.c
    core0.c
    core1.c
    getaline.c
+   modul/romc.S
    )
    
 target_link_libraries(eprom_emulator

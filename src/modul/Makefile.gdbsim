@@ -1,0 +1,33 @@
+SRC = simulation_main.c
+A_SRC = romc.S simulation_crt0.S
+
+OBJ = $(SRC:.c=.o) $(A_SRC:.S=.o)
+
+DEPS = $(SRC) $(A_SRC) Makefile
+
+PREFIX = arm-none-eabi
+#arm-linux-gnueabihf
+
+
+CFLAGS =-DSIMULATOR -mthumb #-march=armv6-m #-msoft-float
+
+CC = $(PREFIX)-gcc
+ASM = $(PREFIX)-as
+
+all:	modul
+
+%.o: %.c $(DEPS)
+	$(CC) $(CFLAGS) -g -c -o $@ $<
+
+%.o: %.S $(DEPS)
+	$(CC) $(CFLAGS) -g -c -o $@ $< 
+
+modul:	$(OBJ)
+	$(CC) -nostdlib $(CFLAGS) -g -o $@ $(OBJ)
+
+clean:
+	rm -f modul $(OBJ)
+
+debug:	modul
+	cgdb -d /opt/arm/bin/arm-elf-gdb -ex "target sim" -ex "load" -ex "run" -ex "set \$$pc=\$$pc+2" modul
+

@@ -17,7 +17,7 @@
 #include "getaline.h"
 #include "mcurses.h"
 
-extern uint16_t trace_mem[0x10000];
+extern uint16_t memory[0x10000];
 
 bool console_crlf_enabled;
 void debug_clocks();
@@ -26,12 +26,12 @@ void debug_clocks();
 uint8_t peek32Memory(uint32_t address)
 {
    uint8_t *p;
-   return trace_mem[address];
+   return memory[address];
 }
 void poke32Memory(uint32_t address, uint8_t value)
 {
    uint8_t *p;
-   trace_mem[address] = value;
+   memory[address] = value;
 }
 
 uint8_t (*FunctionPointer_read32Memory)(uint32_t address) = peek32Memory;              // set default function
