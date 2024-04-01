@@ -17,7 +17,7 @@
 #include "getaline.h"
 #include "mcurses.h"
 
-extern uint16_t memory[0x10000];
+extern uint8_t memory[0x10000];
 
 bool console_crlf_enabled;
 void debug_clocks();

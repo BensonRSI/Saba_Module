@@ -23,9 +23,12 @@
 
 #include "bus.h"
 
-uint16_t memory[0x10000];
+#define TEST_LOOP
+#define EMULATED_MEMSIZE 0x10000
 
-uint8_t memory_map[64] = {
+uint8_t memory[EMULATED_MEMSIZE];
+
+const uint8_t memory_map[64] = {
     1,    /* 0000 */
     1,    /* 0400 */
     1,    /* 0800 */
@@ -100,17 +103,33 @@ extern void romc(void);
 
 static inline void bus_init()
 {
+   gpio_init_mask(DATABUS_MASK | ROMC_MASK | WRITE_MASK | PHI_MASK | IRQ_IN_MASK | IRQ_OUT_MASK | DB_DIR_MASK | DB_OE_MASK | TEST_PIN1_MASK);
    gpio_set_dir_in_masked(DATABUS_MASK | ROMC_MASK | WRITE_MASK | PHI_MASK | IRQ_IN_MASK | IRQ_OUT_MASK);
 
    gpio_put_masked(DB_DIR_MASK, DB_DIR_IN);    // Make sure DB is not output on main-bus
    gpio_put_masked(DB_OE_MASK, DB_OE_ENABLED); // activate Output
 
-   gpio_set_dir_out_masked(DB_OE_MASK | DB_DIR_MASK);
+   gpio_set_dir_out_masked(DB_OE_MASK | DB_DIR_MASK | TEST_PIN1_MASK);
+
+   gpio_clr_mask(DB_DIR_MASK); // Make sure DB is not output on main-bus
+   gpio_clr_mask(DB_OE_MASK);  // activate Output
+
+   gpio_set_mask(TEST_PIN1_MASK); // activate Output
+}
+
+void rampattern(void)
+{
+   for (int i = 0; i < EMULATED_MEMSIZE; i += 2)
+   {
+      memory[i] = i / 2;
+      memory[i + 1] = (i >> 8);
+   }
 }
 
 void system_init()
 {
-   memset(memory, 0x00, sizeof(memory));
+   // memset(memory, 0x00, sizeof(memory));
+   rampattern();
 }
 
 /******************************************************************************
@@ -119,6 +138,7 @@ void system_init()
 void bus_run()
 {
    uint16_t trace_counter = 0; // Modulo has fit to size of tracemem !
+
    bus_init();
    system_init();
    uint16_t clock_in;
@@ -127,14 +147,25 @@ void bus_run()
 
    do
    {
-      clock_in = gpio_get_all() & 0xffff;
-   } while (clock_in & (1 << 13) == 0);
-   // wait for the first write pulse
-   // when not run trace loop forever
-   do
-   {
+      do
+      {
+         clock_in = gpio_get_all() & 0xffff;
+      } while ((clock_in & (1 << 13)) == 0);
+      // wait for the first write pulse
+      // when not run trace loop forever
+      gpio_set_dir_out_masked(DATABUS_MASK);
+      gpio_put_masked(DATABUS_MASK, memory[trace_counter]);
+      gpio_set_mask(DB_DIR_MASK);
       // Fetch everything as fast as possible and put it to the tracemem
-      trace_mem[trace_counter++] = (uint16_t)(gpio_get_all() & 0xffff);
+      memory[trace_counter++] = clock_in & 0xff;
+      memory[trace_counter++] = (clock_in >> 8) & 0xff;
+      do
+      {
+         clock_in = gpio_get_all() & 0xffff;
+      } while ((clock_in & (1 << 13)) == 1);
+      // gpio_clr_mask(DB_DIR_MASK);
+      // gpio_set_dir_in_masked(DATABUS_MASK);
+
    } while (trace_counter);
    while (1)
       ;

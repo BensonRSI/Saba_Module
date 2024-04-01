@@ -32,7 +32,11 @@
 #define DB_OE_DISABLED 1
 
 #define DB_DIR_SHIFT 17
-#define DB_DIR_MASK 1 << DB_OE_SHIFT
+#define DB_DIR_MASK 1 << DB_DIR_SHIFT
+
+#define TEST_PIN1_SHIFT 27
+#define TEST_PIN1_MASK 1 << TEST_PIN1_SHIFT
+
 
 #define DB_DIR_IN 1
 #define DB_DIR_OUT 0
