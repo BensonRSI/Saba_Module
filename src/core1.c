@@ -23,7 +23,7 @@
 
 #include "bus.h"
 
-#define TEST_LOOP
+// #define TEST_LOOP
 #define EMULATED_MEMSIZE 0x10000
 
 uint8_t memory[EMULATED_MEMSIZE];
@@ -121,8 +121,10 @@ void rampattern(void)
 {
    for (int i = 0; i < EMULATED_MEMSIZE; i += 2)
    {
-      memory[i] = i / 2;
-      memory[i + 1] = (i >> 8);
+      memory[i + 1] = i / 2;
+      memory[i] = (i >> 8);
+      // memory[i] = i;
+      // memory[i + 1] = i + 1;
    }
 }
 
