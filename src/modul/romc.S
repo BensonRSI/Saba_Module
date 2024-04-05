@@ -37,6 +37,7 @@
         JUMP_TABLE .req r12	// holds base of "jumptable"
         MEMORY .req r11		// holds base to "memory"
         MEMORY_MAP .req r10	// holds base to "memory_map"
+        DB_DIR .req r9
         WORD_MASK .req r7	// holds 0xffff
         PC0 .req r6		// PC0 reg
         PC1 .req r5		// PC1 reg
@@ -59,6 +60,7 @@
 	// wait for falling edge macro
 
         .macro wait_for_phi_falling
+        #ifndef SIMULATOR
         mov r1,#1
         lsl r1,#PHI_SHIFT
 1:
@@ -72,7 +74,7 @@
         ldr r0,[SIO_REG, #GPIO_IN]
         and r0,r1
         bne 2b
-
+        #endif
         .endm
 
         .macro disable_write
@@ -124,12 +126,12 @@
         mov  \scratch,#DB_MASK
         str  \scratch,[SIO_REG, #GPIO_CLR]
         str  \reg,[SIO_REG, #GPIO_SET]
-        // Switch Databus-buffer to output
-        mov \reg,#1
-        lsl \reg,#DB_DIR_SHIFT
-        str \reg,[SIO_REG, #GPIO_SET]
 
         str  \scratch,[SIO_REG, #GPIO_OE_SET]
+        // Switch Databus-buffer to output
+        mov \scratch, DB_DIR
+        str \scratch,[SIO_REG, #GPIO_SET]
+        
         .endm
 
 	// write register to data bus
@@ -143,13 +145,11 @@
         and  \scratch,\reg
         str  \scratch,[SIO_REG, #GPIO_SET]
 
-        // Switch Databus-buffer to output
-        mov \reg,#1
-        lsl \reg,#DB_DIR_SHIFT
-        str \reg,[SIO_REG, #GPIO_SET]
-
         mov  \scratch,#DB_MASK
         str  \scratch,[SIO_REG, #GPIO_OE_SET]
+        // Switch Databus-buffer to output
+        mov \scratch, DB_DIR
+        str \scratch,[SIO_REG, #GPIO_SET]
         .endm
 
         #ifdef SIMULATOR
@@ -173,7 +173,8 @@ romc:
         ldr r0, =memory_map
         mov MEMORY_MAP,r0
         ldr WORD_MASK, =0xffff
-        
+        ldr r0, =1 << DB_DIR_SHIFT
+        mov DB_DIR, r0
         #ifndef SIMULATOR
         mov PC0,#0
         mov PC1,#0
