@@ -120,6 +120,7 @@
 	//         scratch   : register that is poluted by internal use
 
         .macro write_data_bus reg, scratch
+        wait_for_phi_falling
         mov  \scratch,#DB_MASK
         str  \scratch,[SIO_REG, #GPIO_CLR]
         str  \reg,[SIO_REG, #GPIO_SET]
@@ -136,6 +137,7 @@
 	//         scratch   : register that is poluted by internal use
 
         .macro write_data_bus_masked reg, scratch
+        wait_for_phi_falling
         mov  \scratch,#DB_MASK
         str  \scratch,[SIO_REG, #GPIO_CLR]
         and  \scratch,\reg
