@@ -30,9 +30,9 @@ bi_decl(bi_program_name("Sorbus Computer Native Core"))
    stdio_init_all();
    console_set_crlf(true);
 
-#if 0
+#if 1
    // give some time to connect to console
-   sleep_ms( 2000 );
+   sleep_ms(2000);
 #endif
 
    // for toying with overclocking

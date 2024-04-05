@@ -29,6 +29,7 @@
         ROMC_MASK = 0x1f
         WRITE_SHIFT = 13
         PHI_SHIFT = 14
+        DB_DIR_SHIFT = 17
         
         //register used for special purposes
         
@@ -57,6 +58,23 @@
 
 	// wait for falling edge macro
 
+        .macro wait_for_phi_falling
+        mov r1,#1
+        lsl r1,#PHI_SHIFT
+1:
+        ldr r0,[SIO_REG, #GPIO_IN]
+        and r0,r1
+        beq 1b
+
+        mov r1,#1
+        lsl r1,#PHI_SHIFT
+2:
+        ldr r0,[SIO_REG, #GPIO_IN]
+        and r0,r1
+        bne 2b
+
+        .endm
+
         .macro wait_for_write_falling
 
         #ifndef SIMULATOR
@@ -71,7 +89,14 @@
         beq 1b
         // disable write on dbus
         mov r0,#DB_MASK
-        str r0,[SIO_REG, #GPIO_OE_SET]
+        str r0,[SIO_REG, #GPIO_OE_CLR]
+        // Switch Databus-buffer to input 
+        mov r1,#1
+        lsl r1,#DB_DIR_SHIFT
+        str r1,[SIO_REG, #GPIO_CLR]
+        mov r1,#1
+        lsl r1,#WRITE_SHIFT
+
 2:
         ldr r0,[SIO_REG, #GPIO_IN]
         and r0,r1
@@ -98,7 +123,12 @@
         mov  \scratch,#DB_MASK
         str  \scratch,[SIO_REG, #GPIO_CLR]
         str  \reg,[SIO_REG, #GPIO_SET]
-        str  \scratch,[SIO_REG, #GPIO_OE_CLR]
+        // Switch Databus-buffer to output
+        mov \reg,#1
+        lsl \reg,#DB_DIR_SHIFT
+        str \reg,[SIO_REG, #GPIO_SET]
+
+        str  \scratch,[SIO_REG, #GPIO_OE_SET]
         .endm
 
 	// write register to data bus
@@ -111,7 +141,7 @@
         and  \scratch,\reg
         str  \scratch,[SIO_REG, #GPIO_SET]
         mov  \scratch,#DB_MASK
-        str  \scratch,[SIO_REG, #GPIO_OE_CLR]
+        str  \scratch,[SIO_REG, #GPIO_OE_SET]
         .endm
 
         #ifdef SIMULATOR
@@ -170,6 +200,9 @@ romc1f:
 	// endless loop for interpreting ROMC
 romcloop:
         wait_for_write_falling
+        // Add one 2times Wait 4 Phi falling here ?
+        wait_for_phi_falling
+        wait_for_phi_falling
         ldr r0,[SIO_REG, #GPIO_IN]
         lsr r0,#ROMC_SHIFT
         mov r1,#ROMC_MASK
@@ -186,7 +219,9 @@ romc03:
 	//				instruction fetches. 
         check_map PC0,r1
         beq romc00_cont
-        
+
+        wait_for_phi_falling
+
         mov r1, MEMORY
         ldrb r0, [r1, PC0]
         write_data_bus r0,r1
@@ -249,10 +284,11 @@ romc06:
 romc07:
 	//00111 	07 	L 	Place the high order byte of PC1 on the data bus. 
         check_map PC1,r1
-        beq romcloop
+        beq romc07_cont
         mov r0,PC1
         lsr r0,#8
         write_data_bus r0,r1
+romc07_cont:
         b romcloop
 
 romc08:
@@ -266,13 +302,14 @@ romc09:
 	//01001 	09 	L 	The device whose address space includes the contents of the DC0 register must place the low order
 	//				byte of DC0 onto the data bus. 
         check_map DC0,r1
-        beq romcloop
+        beq romc09_cont
         write_data_bus_masked DC0,r1
+romc09_cont:
         b romcloop
         
 romc0a:
 	//01010 	0A 	L 	All devices add the 8-bit value on the data bus, treated as a signed binary number, to the data counter. 
-        mov r1,#0
+        mov r1,#0  // Wozu ?
         ldr r1,[SIO_REG, #GPIO_IN]
         sxtb r0,r1
         add DC0,r0

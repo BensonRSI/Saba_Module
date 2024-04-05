@@ -16,26 +16,27 @@
 #include "common.h"
 #include "getaline.h"
 #include "mcurses.h"
+#include "hexedit.h"
 
-extern uint16_t memory[0x10000];
+extern uint8_t memory[0x10000];
 
 bool console_crlf_enabled;
 void debug_clocks();
 
 // default functions are RAM access functons by pointers
-uint8_t peek32Memory(uint32_t address)
+uint8_t peekModuleMemory(uint16_t address)
 {
    uint8_t *p;
    return memory[address];
 }
-void poke32Memory(uint32_t address, uint8_t value)
+void pokeModuleMemory(uint16_t address, uint8_t value)
 {
    uint8_t *p;
    memory[address] = value;
 }
 
-uint8_t (*FunctionPointer_read32Memory)(uint32_t address) = peek32Memory;              // set default function
-void (*FunctionPointer_write32Memory)(uint32_t address, uint8_t value) = poke32Memory; // set default function
+uint8_t (*FunctionPointer_readModuleMemory)(uint16_t address) = peekModuleMemory;              // set default function
+void (*FunctionPointer_writeModuleMemory)(uint16_t address, uint8_t value) = pokeModuleMemory; // set default function
 
 void console_set_crlf(bool enable)
 {
@@ -78,10 +79,10 @@ void console_run()
 {
    multicore_lockout_victim_init();
    // init mcurses
-   setFunction_putchar(putchar); // putchar_raw
-   setFunction_getchar(getchar); // putchar_raw
-   setFunction_readMemory(FunctionPointer_read32Memory);
-   setFunction_writeMemory(FunctionPointer_write32Memory);
+   setFunction_putchar((void (*)(uint8_t))putchar); // putchar_raw
+   setFunction_getchar((char (*)(void))getchar);    // putchar_raw
+   setFunction_readMemory(FunctionPointer_readModuleMemory);
+   setFunction_writeMemory(FunctionPointer_writeModuleMemory);
    initscr();
 
    welcome();
