@@ -82,8 +82,7 @@
         mov r0,#DB_MASK
         str r0,[SIO_REG, #GPIO_OE_CLR]
         // Switch Databus-buffer to input 
-        mov r1,#1
-        lsl r1,#DB_DIR_SHIFT
+        mov r1,DB_DIR
         str r1,[SIO_REG, #GPIO_CLR]
         .endm
                 
