@@ -75,6 +75,16 @@
 
         .endm
 
+        .macro disable_write
+        // disable write on dbus
+        mov r0,#DB_MASK
+        str r0,[SIO_REG, #GPIO_OE_CLR]
+        // Switch Databus-buffer to input 
+        mov r1,#1
+        lsl r1,#DB_DIR_SHIFT
+        str r1,[SIO_REG, #GPIO_CLR]
+        .endm
+                
         .macro wait_for_write_falling
 
         #ifndef SIMULATOR
@@ -87,21 +97,11 @@
         ldr r0,[SIO_REG, #GPIO_IN]
         and r0,r1
         beq 1b
-        // disable write on dbus
-        mov r0,#DB_MASK
-        str r0,[SIO_REG, #GPIO_OE_CLR]
-        // Switch Databus-buffer to input 
-        mov r1,#1
-        lsl r1,#DB_DIR_SHIFT
-        str r1,[SIO_REG, #GPIO_CLR]
-        mov r1,#1
-        lsl r1,#WRITE_SHIFT
 
 2:
         ldr r0,[SIO_REG, #GPIO_IN]
         and r0,r1
         bne 2b
-        //sleep 50ns ?
         
         #else
         
@@ -203,6 +203,7 @@ romcloop:
         // Add one 2times Wait 4 Phi falling here ?
         wait_for_phi_falling
         wait_for_phi_falling
+        disable_write
         ldr r0,[SIO_REG, #GPIO_IN]
         lsr r0,#ROMC_SHIFT
         mov r1,#ROMC_MASK
