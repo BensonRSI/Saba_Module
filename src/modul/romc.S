@@ -181,6 +181,8 @@ romc:
         #endif
         b   romcloop
 
+        .ltorg
+
 romc1e:
 	//11110 	1E 	L 	The device whose address space includes the contents of PC0 must place the low order byte of PC0
 	//				onto the data bus. 
@@ -269,19 +271,21 @@ romc04:
 romc05:
 	//00101 	05 	L 	Store the data bus contents into the memory location pointed to by DC0; increment DC0. 
         check_map DC0,r1
-        bpl romcloop
+        bpl romc05_cont
         ldr r1,[SIO_REG, #GPIO_IN]
         mov r0,MEMORY
         strb r1,[r0, DC0]
+romc05_cont:
         b romcloop
        
 romc06:
 	//00110 	06 	L 	Place the high order byte of DC0 on the data bus. 
         check_map DC0,r1
-        beq romcloop
+        beq romc06_cont
         mov r0,DC0
         lsr r0,#8
         write_data_bus r0,r1
+romc06_cont:
         b romcloop
         
 romc07:
@@ -499,7 +503,6 @@ romc1d:
         mov DC0,DC1
         mov DC1,r0
         b romcloop
-
 
         .align 4
 	// table used for jumps
