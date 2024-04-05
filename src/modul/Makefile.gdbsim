@@ -1,3 +1,4 @@
+
 SRC = simulation_main.c
 A_SRC = romc.S simulation_crt0.S
 
@@ -11,19 +12,19 @@ PREFIX = arm-none-eabi
 
 CFLAGS =-DSIMULATOR -mthumb #-march=armv6-m #-msoft-float
 
-CC = $(PREFIX)-gcc
+CC = $(PREFIX)-gcc $(CFLAGS) -g -c
 ASM = $(PREFIX)-as
 
 all:	modul
 
-%.o: %.c $(DEPS)
-	$(CC) $(CFLAGS) -g -c -o $@ $<
+%.o:%.c $(DEPS)
+	$(CC) -o $@ $<
 
-%.o: %.S $(DEPS)
-	$(CC) $(CFLAGS) -g -c -o $@ $< 
+%.o:%.S $(DEPS)
+	$(CC) -o $@ $< 
 
 modul:	$(OBJ)
-	$(CC) -nostdlib $(CFLAGS) -g -o $@ $(OBJ)
+	$(PREFIX)-gcc -nostdlib $(CFLAGS) -g -o $@ $(OBJ)
 
 clean:
 	rm -f modul $(OBJ)
