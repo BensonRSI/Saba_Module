@@ -142,6 +142,12 @@
         str  \scratch,[SIO_REG, #GPIO_CLR]
         and  \scratch,\reg
         str  \scratch,[SIO_REG, #GPIO_SET]
+
+        // Switch Databus-buffer to output
+        mov \reg,#1
+        lsl \reg,#DB_DIR_SHIFT
+        str \reg,[SIO_REG, #GPIO_SET]
+
         mov  \scratch,#DB_MASK
         str  \scratch,[SIO_REG, #GPIO_OE_SET]
         .endm
@@ -316,7 +322,7 @@ romc09_cont:
         
 romc0a:
 	//01010 	0A 	L 	All devices add the 8-bit value on the data bus, treated as a signed binary number, to the data counter. 
-        mov r0,#0xff
+        mov r0,#DB_MASK
         ldr r1,[SIO_REG, #GPIO_IN]
         and r1,r0
         sxtb r0,r1
