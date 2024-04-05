@@ -316,8 +316,9 @@ romc09_cont:
         
 romc0a:
 	//01010 	0A 	L 	All devices add the 8-bit value on the data bus, treated as a signed binary number, to the data counter. 
-        mov r1,#0  // Wozu ?
+        mov r0,#0xff
         ldr r1,[SIO_REG, #GPIO_IN]
+        and r1,r0
         sxtb r0,r1
         add DC0,r0
         and DC0,WORD_MASK
