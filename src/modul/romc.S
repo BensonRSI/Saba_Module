@@ -68,8 +68,6 @@
         and r0,r1
         beq 1b
 
-        mov r1,#1
-        lsl r1,#PHI_SHIFT
 2:
         ldr r0,[SIO_REG, #GPIO_IN]
         and r0,r1
@@ -121,7 +119,6 @@
 	//         scratch   : register that is poluted by internal use
 
         .macro write_data_bus reg, scratch
-        wait_for_phi_falling
         mov  \scratch,#DB_MASK
         str  \scratch,[SIO_REG, #GPIO_CLR]
         str  \reg,[SIO_REG, #GPIO_SET]
@@ -137,8 +134,7 @@
 	// param : reg : register value to write, any value, only lowest byte written
 	//         scratch   : register that is poluted by internal use
 
-        .macro write_data_bus_masked reg, scratch
-        wait_for_phi_falling
+        .macro write_data_bus_masked reg, scratch       
         mov  \scratch,#DB_MASK
         str  \scratch,[SIO_REG, #GPIO_CLR]
         and  \scratch,\reg
@@ -212,8 +208,8 @@ romcloop:
         wait_for_write_falling
         // Add one 2times Wait 4 Phi falling here ?
         wait_for_phi_falling
-        wait_for_phi_falling
         disable_write
+        wait_for_phi_falling
         ldr r0,[SIO_REG, #GPIO_IN]
         lsr r0,#ROMC_SHIFT
         mov r1,#ROMC_MASK
@@ -232,6 +228,8 @@ romc03:
         beq romc00_cont
 
         wait_for_phi_falling
+//        wait_for_phi_falling
+
 
         mov r1, MEMORY
         ldrb r0, [r1, PC0]
