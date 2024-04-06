@@ -19,6 +19,9 @@
 #include "hexedit.h"
 
 extern uint8_t memory[0x10000];
+#ifdef DEBUG_STATES
+extern uint8_t debug_val[32 * 2];
+#endif
 
 bool console_crlf_enabled;
 void debug_clocks();
@@ -62,6 +65,14 @@ void console_rp2040()
    case 'c':
       debug_clocks();
       break;
+#ifdef DEBUG_STATES
+   case 'd':
+      for (int i = 0; i < 32; i++)
+      {
+         printf("ROMC state %d 0x%02x val 0x%02x\n", i, debug_val[i], debug_val[i + 32]);
+      }
+      break;
+#endif
 
    default:
       break;

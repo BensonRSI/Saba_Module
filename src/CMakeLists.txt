@@ -32,6 +32,7 @@ target_include_directories(mcurses
 
 set_property(SOURCE modul/romc.S APPEND PROPERTY LANGUAGE ASM )
 
+add_definitions(-DDEBUG_STATES)
 
 # eprom_emulator: simulate an Eprom, to load games from flash
 add_executable(eprom_emulator

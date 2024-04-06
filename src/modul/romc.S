@@ -7,7 +7,10 @@
         .global romc
         .global memory
         .global memory_map
-        
+#ifdef DEBUG_STATES        
+        .global debug_val
+        DUMP_VAL = 0x020
+#endif        
 
         #ifndef SIMULATOR
         SIO_BASE = 0xd0000000
@@ -38,6 +41,9 @@
         MEMORY .req r11		// holds base to "memory"
         MEMORY_MAP .req r10	// holds base to "memory_map"
         DB_DIR .req r9
+#ifdef DEBUG_STATES  
+        DEBUG_VAL .req sp
+#endif        
         WORD_MASK .req r7	// holds 0xffff
         PC0 .req r6		// PC0 reg
         PC1 .req r5		// PC1 reg
@@ -170,10 +176,15 @@ romc:
         ldr WORD_MASK, =0xffff
         ldr r0, =1 << DB_DIR_SHIFT
         mov DB_DIR, r0
+#ifdef DEBUG_STATES  
+        ldr r0, = debug_val
+        mov DEBUG_VAL, r0
+#endif        
         #ifndef SIMULATOR
         mov PC0,#0
         mov PC1,#0
-        mov DC0,#0
+        mov DC0,#0x28
+        lsl DC0,#8
         mov DC1,#0
         #else
         ldr PC0, =0x0800
@@ -214,6 +225,11 @@ romcloop:
         lsr r0,#ROMC_SHIFT
         mov r1,#ROMC_MASK
         and r0,r1
+#ifdef DEBUG_STATES  
+        mov r1,DEBUG_VAL
+        add r1,r0
+        strb r0,[r1]
+#endif        
         lsl r0,#2
         add r0,JUMP_TABLE
         ldr r1,[r0]
@@ -288,6 +304,12 @@ romc06:
         beq romc06_cont
         mov r0,DC0
         lsr r0,#8
+#ifdef DEBUG_STATES
+        mov r1,DEBUG_VAL
+        add r1,#DUMP_VAL
+        add r1,#6
+        strb r0,[r1]
+#endif        
         write_data_bus r0,r1
 romc06_cont:
         b romcloop
@@ -314,6 +336,13 @@ romc09:
 	//				byte of DC0 onto the data bus. 
         check_map DC0,r1
         beq romc09_cont
+#ifdef DEBUG_STATES
+        mov r1,DEBUG_VAL
+        add r1,#DUMP_VAL
+        add r1,#9
+        strb DC0,[r1]
+#endif        
+
         write_data_bus_masked DC0,r1
 romc09_cont:
         b romcloop
@@ -454,6 +483,12 @@ romc15:
 romc16:
 	//10110 	16 	L 	All devices move the contents of the data bus into the high order byte of DC0. 
         ldr r0,[SIO_REG, #GPIO_IN]
+#ifdef DEBUG_STATES
+        mov r1,DEBUG_VAL
+        add r1,#DUMP_VAL
+        add r1,#0x16
+        strb r0,[r1]
+#endif        
         mov r1,#0xff
         and r0,r1
         and DC0,r1
@@ -484,6 +519,12 @@ romc18:
 romc19:
 	//11001 	19 	L 	All devices move the contents of the data bus into the low order byte of DC0. 
         ldr r0,[SIO_REG, #GPIO_IN]
+#ifdef DEBUG_STATES
+        mov r1,DEBUG_VAL
+        add r1,#DUMP_VAL
+        add r1,#0x19
+        strb r0,[r1]
+#endif
         mov r1,#0xff
         and r0,r1
         lsl r1,#8

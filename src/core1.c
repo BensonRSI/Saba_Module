@@ -97,6 +97,12 @@ const uint8_t memory_map[64] = {
 
 extern void romc(void);
 
+#ifdef DEBUG_STATES
+uint8_t debug_val[32 * 2] = {
+    0xff,
+};
+#endif
+
 /******************************************************************************
  * internal functions
  ******************************************************************************/
