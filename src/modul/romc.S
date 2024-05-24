@@ -124,7 +124,7 @@
 	// param : reg : register value to write, <= 0xff
 	//         scratch   : register that is poluted by internal use
 
-        .macro write_data_bus reg, scratch
+        .macro write_data_bus reg_NO_NO, scratch
         mov  \scratch,#DB_MASK
         str  \scratch,[SIO_REG, #GPIO_CLR]
         str  \reg,[SIO_REG, #GPIO_SET]
@@ -140,7 +140,7 @@
 	// param : reg : register value to write, any value, only lowest byte written
 	//         scratch   : register that is poluted by internal use
 
-        .macro write_data_bus_masked reg, scratch       
+        .macro write_data_bus_masked_NO_NO reg, scratch       
         mov  \scratch,#DB_MASK
         str  \scratch,[SIO_REG, #GPIO_CLR]
         and  \scratch,\reg
@@ -162,6 +162,11 @@
         .endm
         #endif
        
+       .macro read_data_bus reg0, reg1
+        ldr reg0,[SIO_REG, #GPIO_IN]
+        mov reg1,MEMORY
+       .endm 
+
 .global romc
 romc:
 	// init for interpreting ROMC
