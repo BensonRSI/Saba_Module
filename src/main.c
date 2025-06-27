@@ -24,7 +24,7 @@ bi_decl(bi_program_name("Sorbus Computer Native Core"))
 #include "bus.h"
 #include "common.h"
 
-            int main()
+int main()
 {
    // setup UART
    stdio_init_all();

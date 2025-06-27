@@ -8,6 +8,7 @@
 #include <ctype.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <string.h>
 #include <pico/multicore.h>
 #include <pico/stdlib.h>
 #include <pico/util/queue.h>
@@ -20,7 +21,9 @@
 
 extern uint8_t memory[0x10000];
 #ifdef DEBUG_STATES
-extern uint8_t debug_val[32 * 2];
+extern volatile uint8_t debug_val[34 * 2];
+int trace_dump = 0;
+uint16_t print_buffer[2000];
 #endif
 
 bool console_crlf_enabled;
@@ -47,6 +50,27 @@ void console_set_crlf(bool enable)
    console_crlf_enabled = enable;
 }
 
+void fill_ram(uint8_t val)
+{
+
+   memset(memory, val, sizeof(memory));
+}
+
+void print_help()
+{
+
+   printf("\n\n");
+   printf("SABA Videoplay Eprom-Emulator\n");
+   printf("------------------------------\n\n");
+   printf("2025 by Benson and Peiselulli\n");
+   printf("          of TRSI\n\n");
+   printf(" h: hexedit for memdump\n");
+   printf(" c: print clocksettings\n");
+   printf(" t: trace current PC\n");
+   printf(" f: fill mem with 0\n");
+   printf(" d: print ROM-States\n\n");
+}
+
 void console_rp2040()
 {
    char *in;
@@ -65,7 +89,35 @@ void console_rp2040()
    case 'c':
       debug_clocks();
       break;
+   case 'f':
+      printf("Clear Ram\n");
+      fill_ram(0);
+      break;
 #ifdef DEBUG_STATES
+   case 't':
+      trace_dump++;
+      printf("Tracedump State: %d\n", trace_dump);
+      {
+         uint16_t print_val_old = 0;
+         int i;
+         for (i = 0; i < 2000;)
+         {
+            uint16_t print_val = debug_val[0] + (debug_val[1] * 0x100);
+            // printf("PC: 0x%04x   0x%04x\n", print_val, print_val_old);
+            if (print_val != print_val_old)
+            {
+               print_buffer[i] = print_val;
+               print_val_old = print_val;
+               i++;
+            }
+         }
+         for (i = 0; i < 2000; i++)
+         {
+            printf("PC: 0x%04x\n", print_buffer[i]);
+         }
+      }
+      break;
+
    case 'd':
       for (int i = 0; i < 32; i++)
       {
@@ -75,6 +127,7 @@ void console_rp2040()
 #endif
 
    default:
+      print_help();
       break;
    }
 }
@@ -102,6 +155,12 @@ void console_run()
    for (;;)
    {
       console_rp2040();
+#ifdef DEBUG_STATES
+      if (trace_dump & 0x01)
+      {
+         printf("PC: 0x%04x\n", debug_val[0] + (debug_val[1] * 0x100));
+      }
+#endif
       tight_loop_contents();
    }
 }

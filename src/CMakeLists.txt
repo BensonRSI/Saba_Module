@@ -32,7 +32,8 @@ target_include_directories(mcurses
 
 set_property(SOURCE modul/romc.S APPEND PROPERTY LANGUAGE ASM )
 
-add_definitions(-DDEBUG_STATES)
+add_compile_definitions(DEBUG_STATES)
+add_compile_definitions(STORE_BUS_DATA)  # Debug-feature, read from bus, instead of writing
 
 # eprom_emulator: simulate an Eprom, to load games from flash
 add_executable(eprom_emulator

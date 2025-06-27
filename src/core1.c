@@ -24,9 +24,14 @@
 #include "bus.h"
 
 // #define TEST_LOOP
-#define EMULATED_MEMSIZE 0x10000
 
+#ifdef TEST_LOOP
+#define EMULATED_MEMSIZE 0x8000
+uint16_t memory[EMULATED_MEMSIZE];
+#else
+#define EMULATED_MEMSIZE 0x10000
 uint8_t memory[EMULATED_MEMSIZE];
+#endif
 
 const uint8_t memory_map[64] = {
     1,    /* 0000 */
@@ -98,7 +103,7 @@ const uint8_t memory_map[64] = {
 extern void romc(void);
 
 #ifdef DEBUG_STATES
-uint8_t debug_val[32 * 2] = {
+volatile uint8_t debug_val[34 * 2] = {
     0xff,
 };
 #endif
@@ -109,17 +114,18 @@ uint8_t debug_val[32 * 2] = {
 
 static inline void bus_init()
 {
-   gpio_init_mask(DATABUS_MASK | ROMC_MASK | WRITE_MASK | PHI_MASK | IRQ_IN_MASK | IRQ_OUT_MASK | DB_DIR_MASK | DB_OE_MASK | TEST_PIN1_MASK);
+   gpio_init_mask(DATABUS_MASK | ROMC_MASK | WRITE_MASK | PHI_MASK | IRQ_IN_MASK | IRQ_OUT_MASK | DB_DIR_MASK | DB_OE_MASK | TEST_PIN0_MASK | TEST_PIN1_MASK);
    gpio_set_dir_in_masked(DATABUS_MASK | ROMC_MASK | WRITE_MASK | PHI_MASK | IRQ_IN_MASK | IRQ_OUT_MASK);
 
    gpio_put_masked(DB_DIR_MASK, DB_DIR_IN);    // Make sure DB is not output on main-bus
    gpio_put_masked(DB_OE_MASK, DB_OE_ENABLED); // activate Output
 
-   gpio_set_dir_out_masked(DB_OE_MASK | DB_DIR_MASK | TEST_PIN1_MASK);
+   gpio_set_dir_out_masked(DB_OE_MASK | DB_DIR_MASK | TEST_PIN1_MASK | TEST_PIN0_MASK);
 
    gpio_clr_mask(DB_DIR_MASK); // Make sure DB is not output on main-bus
    gpio_clr_mask(DB_OE_MASK);  // activate Output
 
+   gpio_set_mask(TEST_PIN0_MASK); // activate Output
    gpio_set_mask(TEST_PIN1_MASK); // activate Output
 }
 
@@ -136,8 +142,8 @@ void rampattern(void)
 
 void system_init()
 {
-   // memset(memory, 0x00, sizeof(memory));
-   rampattern();
+   memset(memory, 0x00, sizeof(memory));
+   // rampattern();
 }
 
 /******************************************************************************
@@ -145,7 +151,7 @@ void system_init()
  ******************************************************************************/
 void bus_run()
 {
-   uint16_t trace_counter = 0; // Modulo has fit to size of tracemem !
+   uint16_t trace_counter; // Modulo has fit to size of tracemem !
 
    bus_init();
    system_init();
@@ -158,23 +164,23 @@ void bus_run()
       do
       {
          clock_in = gpio_get_all() & 0xffff;
-      } while ((clock_in & (1 << 13)) == 0);
-      // wait for the first write pulse
-      // when not run trace loop forever
-      gpio_set_dir_out_masked(DATABUS_MASK);
+      } while ((clock_in & (PHI_MASK)) == 1);
+      // wait for phy falling
+      /*gpio_set_dir_out_masked(DATABUS_MASK);
       gpio_put_masked(DATABUS_MASK, memory[trace_counter]);
-      gpio_set_mask(DB_DIR_MASK);
+      gpio_set_mask(DB_DIR_MASK);*/
       // Fetch everything as fast as possible and put it to the tracemem
-      memory[trace_counter++] = clock_in & 0xff;
-      memory[trace_counter++] = (clock_in >> 8) & 0xff;
+      memory[trace_counter++] = clock_in;
       do
       {
          clock_in = gpio_get_all() & 0xffff;
-      } while ((clock_in & (1 << 13)) == 1);
+      } while ((clock_in & (PHI_MASK)) == 0);
       // gpio_clr_mask(DB_DIR_MASK);
       // gpio_set_dir_in_masked(DATABUS_MASK);
 
-   } while (trace_counter);
+   } while (trace_counter & 0x7fff);
+   trace_counter = 0;
+
    while (1)
       ;
 #else
