@@ -185,7 +185,9 @@ void bus_run()
       ;
 #else
    // Jump to ROMC decoder , which never returns
-   romc();
+  romc();
+  while (1)
+      ;
 
 #endif
 }

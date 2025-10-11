@@ -10,7 +10,9 @@
 #ifdef DEBUG_STATES        
         .global debug_val
         DUMP_VAL = 0x020
-        DEBUG_PIN_0_SHIFT = 20
+        DEBUG_PIN_0_SHIFT = 18  
+        DEBUG_PIN_1_SHIFT = 19
+        DEBUG_PIN_2_SHIFT = 20  
 
         .macro set_debug_pin  pin,reg
         mov \reg,#1
@@ -108,7 +110,27 @@
         lsl r1,#DB_DIR_SHIFT
         str r1,[SIO_REG, #GPIO_CLR]
         .endm
-                
+
+        .macro wait_for_write_rising
+
+        #ifndef SIMULATOR
+        
+        // real code : wait for write to be high level
+        
+        mov r1,#1
+        lsl r1,#WRITE_SHIFT
+1:
+        ldr r0,[SIO_REG, #GPIO_IN]
+        and r0,r1
+        beq 1b
+       
+        #else
+        
+        //simulator code, do nothing
+
+        #endif
+        .endm
+
         .macro wait_for_write_falling
 
         #ifndef SIMULATOR
@@ -182,7 +204,7 @@
         #endif
        
        .macro read_data_bus reg0, reg1
-        wait_for_phi_falling
+        wait_for_write_rising
         mov \reg1,#DB_MASK
         ldr \reg0,[SIO_REG, #GPIO_IN]
         and \reg0,\reg1
@@ -216,6 +238,9 @@ romc:
         ldr DC0, =0x2800
         ldr DC1, =0x1234
         #endif
+ #ifdef DEBUG_STATES  
+        clr_debug_pin DEBUG_PIN_1_SHIFT,r1
+ #endif       
         b   romcloop
 
         .ltorg
@@ -247,9 +272,10 @@ romcloop:
         //add r1,#DUMP_VAL
         //add r1,#33
         str PC0,[r1]
-        set_debug_pin DEBUG_PIN_0_SHIFT,r1
+        
 #endif 
         wait_for_write_falling       
+        set_debug_pin DEBUG_PIN_0_SHIFT,r1
         wait_for_phi_falling
         disable_write
        // Add one 2times Wait 4 Phi falling here ?
@@ -260,13 +286,13 @@ romcloop:
         mov r1,#ROMC_MASK
         and r0,r1
 #ifdef DEBUG_STATES  
-        mov r1,DEBUG_VAL
-        mov MEMORY_MAP,r0 // MEMORY_MAP is not used, so it can be scratch
+        //mov r1,DEBUG_VAL
+        //mov MEMORY_MAP,r0 // MEMORY_MAP is not used, so it can be scratch
         //add r1,r0
         //ldr r0,[r1]   
         //add r0,#1
         //strb r0,[r1]
-        mov r0,MEMORY_MAP 
+        //mov r0,MEMORY_MAP 
         clr_debug_pin DEBUG_PIN_0_SHIFT,r1
 
 #endif    
@@ -274,7 +300,7 @@ romcloop:
         lsl r0,#2
         add r0,JUMP_TABLE
         ldr r1,[r0]
-        mov pc,r1
+        mov pc,r1 
 romc00:
 	//00000 	00 	S,L 	Instruction Fetch. The device whose address space includes the contents of the PC0 register must
 	//                              place on the data bus the op code addressed by PC0; then all devices increment the contents of PC0. 
@@ -287,7 +313,6 @@ romc03:
 #endif        
 
 #ifdef STORE_BUS_DATA  
-        wait_for_phi_falling
         read_data_bus r0,r1
         mov r1, MEMORY
         strb r0,[r1, PC0]
@@ -307,21 +332,22 @@ romc01:
 	//00001 	01 	L 	The device whose address space includes the contents of the PC0 register must place on the data bus
 	//				the contents of the memory location addressed by PC0; then all devices add the 8-bit value on the data
 	//				bus, as as signed binary number, to PC0. 
-        read_data_bus r0,r1
-
-#ifdef STORE_BUS_DATA 
-      //  wait_for_phi_falling       
-        mov r1, MEMORY
-        strb r0,[r1, PC0]
-#else        
+#ifndef STORE_BUS_DATA 
         check_map PC0,r1
         beq romc01_cont
         mov r1, MEMORY
         ldsb r0,[r1, PC0]
         //write_data_bus r0,r1 //_NO_NO
+        b romc01_cont2
+#endif        
 romc01_cont:
-
+        read_data_bus r0,r1
+#ifdef STORE_BUS_DATA 
+        mov r1, MEMORY
+        strb r0,[r1, PC0]
 #endif              
+romc01_cont2:
+
         sxtb r1,r0
         add PC0,r1
         and PC0,WORD_MASK
@@ -334,7 +360,6 @@ romc02:
 	//				place on the data bus the contents of the memory location addressed by DC0; then all devices
 	//				increment DC0. 
 #ifdef STORE_BUS_DATA 
-        wait_for_phi_falling 
         read_data_bus r0,r1
         mov r1, MEMORY
         strb r0,[r1, DC0]
@@ -361,7 +386,6 @@ romc05:
         check_map DC0,r1
         bpl romc05_cont
 #endif        
-        wait_for_phi_falling 
         read_data_bus r1,r0
         strb r1,[r0, DC0]
 romc05_cont:
@@ -398,6 +422,10 @@ romc08:
 	//				state. Load the data bus into both halves of PC0, thus clearing the register. 
         mov PC1,PC0
         mov PC0,#0
+#ifdef DEBUG_STATES  
+       // set_debug_pin DEBUG_PIN_1_SHIFT,r1
+#endif       
+
         b romcloop
         
 romc09:
@@ -478,6 +506,13 @@ romc0e_cont_read:
         ldr r1,=0xff00
         and DC0, r1
         orr DC0, r0
+#ifdef STORE_BUS_DATA 
+        mov r1, MEMORY
+        strb r0,[r1, PC0]
+        add PC0,#1
+        and PC0,WORD_MASK
+#endif        
+
 romc0f: 
 	//01111 	0F 	L 	The interrupting device with highest priority must place the low order byte of the interrupt vector on the
 	//				data bus. All devices must copy the contents of PC0 into PC1. All devices must move the contents of
@@ -505,17 +540,25 @@ romc11_cont_read:
         lsl r0,#8
         and DC0, r1
         orr DC0, r0
+#ifdef STORE_BUS_DATA2
+        mov r1, MEMORY
+        lsr r0,#8
+        strb r0,[r1, PC0]
+        add PC0,#1
+        and PC0,WORD_MASK
+#endif        
+
         b romcloop
 
 romc12:
 	//10010 	12 	L 	All devices copy the contents of PC0 into PC1. All devices then move the contents of the data bus into
 	//				the low order byte of PC0. 
         mov PC1,PC0
-        and PC0,PC0, r1
         read_data_bus r0,r1
-        lsl r1,#8
+        lsl r1,#8   
         and PC0,PC0, r1
         orr PC0,PC0, r0
+        b romcloop
 romc13:
 	//10011 	13 	L 	The interrupting device with highest priority must move the high order half of the interrupt vector onto
 	//				data bus. All devices must move the contents of the data bus into the high order byte of PC0. The
@@ -526,8 +569,7 @@ romc13:
         
 
 romc14:
-	//10100 	14 	L 	All devices move the contents of the data bus into the high order byte of PC0. 
-        //wait_for_phi_falling
+	//10100 	14 	L 	All devices move the contents of the data bus into the high order byte of PC0.         
         read_data_bus r0,r1
         and PC0,r1
 #ifdef DEBUG_STATES
