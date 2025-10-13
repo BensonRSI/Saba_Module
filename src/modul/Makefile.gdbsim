@@ -10,7 +10,7 @@ PREFIX = arm-none-eabi
 #arm-linux-gnueabihf
 
 
-CFLAGS =-DSIMULATOR -mthumb #-march=armv6-m #-msoft-float
+CFLAGS =-DSIMULATOR -DDEBUG_STATES -mthumb #-march=armv6-m #-msoft-float
 
 CC = $(PREFIX)-gcc $(CFLAGS) -g -c
 ASM = $(PREFIX)-as

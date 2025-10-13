@@ -194,14 +194,19 @@
         str \scratch,[SIO_REG, #GPIO_SET]
         .endm
 
-        #ifdef SIMULATOR
+        //#ifdef SIMULATOR
 	//wrong, but used because ".cpu cortex-m0" is not handled by emulator
-        .macro sxtb reg0,reg1
+        .macro sxtb_macro reg0,reg1
         mov \reg0,\reg1
         mov \reg1,#0xff
-        and \reg0,\reg1        
+        and \reg0,\reg1
+        cmp \reg0,#0x80
+        blo 1f
+        ldr \reg1,=0xffffff00
+        orr \reg0,\reg1
+1:        
         .endm
-        #endif
+        //#endif
        
        .macro read_data_bus reg0, reg1
         wait_for_write_rising
@@ -321,7 +326,7 @@ romc03:
         mov r1, MEMORY
         ldrb r0, [r1, PC0]
         //write_data_bus r0,r1 //_NO_NO
-#error "doe"        
+//#error "doe"        
 #endif        
 romc00_cont:
         add PC0,#1
@@ -348,7 +353,7 @@ romc01_cont:
 #endif              
 romc01_cont2:
 
-        sxtb r1,r0
+        sxtb_macro r1,r0
         add PC0,r1
         and PC0,WORD_MASK
 
@@ -447,7 +452,7 @@ romc09_cont:
 romc0a:
 	//01010 	0A 	L 	All devices add the 8-bit value on the data bus, treated as a signed binary number, to the data counter. 
         read_data_bus r0,r1
-        sxtb r1,r0
+        sxtb_macro r1,r0
         add DC0,r1
         and DC0,WORD_MASK
         b romcloop

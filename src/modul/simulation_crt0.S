@@ -2,6 +2,7 @@
         .thumb
         .global romc
         .global _start
+        .global debug_val
 
 _start:
         ldr r0,=memory
@@ -60,3 +61,7 @@ doe:
         .hword 0x1d87
         .hword 0x1e34
         .hword 0x1f63
+
+        .section data
+debug_val:
+    .hword 0x0

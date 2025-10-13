@@ -236,6 +236,15 @@ void edit_screen()
         case KEY_END : screen.col = screen.cols-1; 
             paint_cursor(&screen); break;
 
+        case KEY_PPAGE : screen.line = 0; paint_cursor(&screen); break;
+        case KEY_NPAGE : screen.line = screen.lines-1; paint_cursor(&screen);break;
+        case '\t':
+            for(int i=0; i < screen.cols; ++i)
+            {
+                screen.chars[screen.line][i] = ' ';
+            }
+            update_line(&screen, screen.line);
+            break;
         case '\n' : do_enter(&screen); break;           
         default :
             if (c >= 0x20 && c <= 0x7e)
