@@ -48,6 +48,7 @@
         ROMC_MASK = 0x1f
         WRITE_SHIFT = 13
         PHI_SHIFT = 14
+        //DB_DIR_SHIFT = DEBUG_PIN_2_SHIFT
         DB_DIR_SHIFT = 17
 
         
@@ -57,21 +58,22 @@
         JUMP_TABLE .req r12	// holds base of "jumptable"
         MEMORY .req r11		// holds base to "memory"
         MEMORY_MAP .req r10	// holds base to "memory_map"
-#ifdef DEBUG_STATES  
-        DEBUG_VAL .req sp
-#endif        
         WORD_MASK .req r7	// holds 0xffff
+        DATA      .req r7	// holds the Data from the bus
         PC0 .req r6		// PC0 reg
         PC1 .req r5		// PC1 reg
         DC0 .req r4		// DC0 reg
         DC1 .req r3		// DC1 reg
+#ifdef DEBUG_STATES
+        DEBUG_VAL .req sp
+#endif
 
 	// check if memory given in "check_reg" is in range
 	// param : check_reg : register to check
 	//         scratch   : register that is poluted by internal use
 	// return : EQ -> not ranged, NE -> in range, MI -> writable
 
-        .macro check_map2 check_reg, scratch
+        .macro check_map check_reg, scratch
         mov \scratch,\check_reg
         lsr \scratch,#10
         add \scratch,MEMORY_MAP
@@ -79,49 +81,66 @@
         orr \scratch,\scratch
         .endm
 
-        .macro check_map check_reg, scratch
-        movs \scratch,#0
+        .macro check_map2 check_reg, scratch
+        mov \scratch,#1
+        orr \scratch,\scratch
         .endm
 
 	// wait for falling edge macro
 
-        .macro wait_for_phi_falling
+        .macro wait_for_phi_falling reg0,reg1
         #ifndef SIMULATOR
-        mov r1,#1
-        lsl r1,#PHI_SHIFT
+        mov \reg0,#1
+        lsl \reg0,#PHI_SHIFT
 1:
-        ldr r0,[SIO_REG, #GPIO_IN]
-        and r0,r1
+        ldr \reg1,[SIO_REG, #GPIO_IN]
+        and \reg1,\reg0
         beq 1b
 
 2:
-        ldr r0,[SIO_REG, #GPIO_IN]
-        and r0,r1
+        ldr \reg1,[SIO_REG, #GPIO_IN]
+        and \reg1,\reg0
         bne 2b
         #endif
         .endm
 
-        .macro disable_write
+        .macro disable_write reg0
         // disable write on dbus
-        mov r0,#DB_MASK
-        str r0,[SIO_REG, #GPIO_OE_CLR]
+        mov \reg0,#DB_MASK
+        str \reg0,[SIO_REG, #GPIO_OE_CLR]
         // Switch Databus-buffer to input 
-        mov r1,#1
-        lsl r1,#DB_DIR_SHIFT
-        str r1,[SIO_REG, #GPIO_CLR]
+        mov \reg0,#1
+        lsl \reg0,#DB_DIR_SHIFT
+        str \reg0,[SIO_REG, #GPIO_CLR]
         .endm
 
-        .macro wait_for_write_rising
+        .macro read_romc reg0,reg1
+        
+        ldr \reg0,[SIO_REG, #GPIO_IN]
+        lsr \reg0,#ROMC_SHIFT
+        mov \reg1,#ROMC_MASK
+        and \reg0,\reg1
+#ifdef DEBUG_STATES_ROMC
+        ldr \reg1,=debug_val
+        add \reg1,#DUMP_VAL
+        add \reg1,\reg0
+        strb \reg0,[\reg1]
+#endif          
+
+        .endm
+
+
+        .macro wait_for_write_rising reg0,reg1
 
         #ifndef SIMULATOR
         
         // real code : wait for write to be high level
         
-        mov r1,#1
-        lsl r1,#WRITE_SHIFT
+        mov \reg1,#1
+        lsl \reg1,#WRITE_SHIFT
 1:
-        ldr r0,[SIO_REG, #GPIO_IN]
-        and r0,r1
+        ldr \reg0,[SIO_REG, #GPIO_IN]
+        and \reg0,\reg1
         beq 1b
        
         #else
@@ -131,23 +150,19 @@
         #endif
         .endm
 
-        .macro wait_for_write_falling
+        .macro wait_for_write_falling reg0,reg1
 
         #ifndef SIMULATOR
         
         // real code : wait for falling edge
         
-        mov r1,#1
-        lsl r1,#WRITE_SHIFT
-1:
-        ldr r0,[SIO_REG, #GPIO_IN]
-        and r0,r1
-        beq 1b
+        mov \reg1,#1
+        lsl \reg1,#WRITE_SHIFT
 
-2:
-        ldr r0,[SIO_REG, #GPIO_IN]
-        and r0,r1
-        bne 2b
+1:
+        ldr \reg0,[SIO_REG, #GPIO_IN]
+        and \reg0,\reg1
+        bne 1b
         
         #else
         
@@ -165,14 +180,15 @@
 	// param : reg : register value to write, <= 0xff
 	//         scratch   : register that is poluted by internal use
 
-        .macro write_data_bus_NO_NO reg, scratch
+        .macro write_data_bus reg, scratch
         mov  \scratch,#DB_MASK
         str  \scratch,[SIO_REG, #GPIO_CLR]
         str  \reg,[SIO_REG, #GPIO_SET]
 
         str  \scratch,[SIO_REG, #GPIO_OE_SET]
         // Switch Databus-buffer to output
-        mov \scratch, #DB_DIR
+        mov \scratch,#1
+        lsl \scratch,#DB_DIR_SHIFT
         str \scratch,[SIO_REG, #GPIO_SET]
         
         .endm
@@ -181,7 +197,7 @@
 	// param : reg : register value to write, any value, only lowest byte written
 	//         scratch   : register that is poluted by internal use
 
-        .macro write_data_bus_masked_NO_NO reg, scratch       
+        .macro write_data_bus_masked reg, scratch       
         mov  \scratch,#DB_MASK
         str  \scratch,[SIO_REG, #GPIO_CLR]
         and  \scratch,\reg
@@ -190,7 +206,8 @@
         mov  \scratch,#DB_MASK
         str  \scratch,[SIO_REG, #GPIO_OE_SET]
         // Switch Databus-buffer to output
-        mov \scratch, #DB_DIR
+        mov \scratch,#1
+        lsl \scratch,#DB_DIR_SHIFT
         str \scratch,[SIO_REG, #GPIO_SET]
         .endm
 
@@ -209,11 +226,42 @@
         //#endif
        
        .macro read_data_bus reg0, reg1
-        wait_for_write_rising
+        wait_for_write_rising \reg0,\reg1
         mov \reg1,#DB_MASK
         ldr \reg0,[SIO_REG, #GPIO_IN]
         and \reg0,\reg1
        .endm 
+
+       .macro trace_pc
+#ifdef DEBUG_STATES
+        mov r1,DEBUG_VAL
+        ldr r0,=debug_val
+        str r1,[r0]
+        //add r1,#DUMP_VAL
+        //add r1,#33
+        str PC0,[r1]
+        //str PC1,[r1,#4]
+        //str DC0,[r1,#8]
+        add r1,#4
+        mov DEBUG_VAL,r1
+        ldr r0,=debug_val+17000
+        cmp r1,r0
+        blo 0f
+        ldr r0,=debug_val
+        mov DEBUG_VAL,r0
+0:        
+           
+/*  Check for underrunning PC
+        ldr r1,=0xfc00
+        and  r1,PC0
+        cmp r1,#0
+        beq 1f
+        // clear PC in doubt 
+        ldr PC0,=0x0000        
+1:
+*/
+#endif  
+        .endm               
 
 .global romc
 romc:
@@ -225,12 +273,7 @@ romc:
         ldr r0, =memory
         mov MEMORY,r0
         ldr r0, =memory_map
-        mov MEMORY_MAP,r0
-        ldr WORD_MASK, =0xffff
-#ifdef DEBUG_STATES  
-        ldr r0, = debug_val
-        mov DEBUG_VAL, r0
-#endif        
+        mov MEMORY_MAP,r0        
         #ifndef SIMULATOR
         mov PC0,#0
         mov PC1,#0
@@ -245,6 +288,9 @@ romc:
         #endif
  #ifdef DEBUG_STATES  
         clr_debug_pin DEBUG_PIN_1_SHIFT,r1
+        ldr r1,=debug_val
+        add r1,#4
+        mov DEBUG_VAL,r1
  #endif       
         b   romcloop
 
@@ -255,7 +301,7 @@ romc1e:
 	//				onto the data bus. 
         check_map PC0,r1
         beq romcloop
-        // write_data_bus_masked PC0,r1  //_NO_NO
+        write_data_bus_masked PC0,r1  
 
         b romcloop
 
@@ -266,42 +312,31 @@ romc1f:
         beq romcloop
         mov r0,PC0
         lsr r0,#8
-        //write_data_bus r0,r1 // _NO_NO
+        write_data_bus r0,r1 
 
         b romcloop
         
 	// endless loop for interpreting ROMC
 romcloop:
+        wait_for_write_falling r0,r1              
+        wait_for_phi_falling r0,r1       
 #ifdef DEBUG_STATES
-        mov r1,DEBUG_VAL
-        //add r1,#DUMP_VAL
-        //add r1,#33
-        str PC0,[r1]
-        
-#endif 
-        wait_for_write_falling       
+        trace_pc
+#endif        
+        disable_write r0
+        wait_for_phi_falling r0,r1
         set_debug_pin DEBUG_PIN_0_SHIFT,r1
-        wait_for_phi_falling
-        disable_write
+        read_romc r0,r1 // r0 holds romc now
        // Add one 2times Wait 4 Phi falling here ?
-       // Romc should be read before, but then we have no register free
-        wait_for_phi_falling
-        ldr r0,[SIO_REG, #GPIO_IN]
-        lsr r0,#ROMC_SHIFT
-        mov r1,#ROMC_MASK
-        and r0,r1
+        // DATA is used as Data-Bus store
+        read_data_bus DATA,r1  // this waits for write rising 
 #ifdef DEBUG_STATES  
-        //mov r1,DEBUG_VAL
-        //mov MEMORY_MAP,r0 // MEMORY_MAP is not used, so it can be scratch
-        //add r1,r0
-        //ldr r0,[r1]   
-        //add r0,#1
-        //strb r0,[r1]
-        //mov r0,MEMORY_MAP 
         clr_debug_pin DEBUG_PIN_0_SHIFT,r1
-
+#ifdef STORE_BUS_DATA  
+        mov r1, MEMORY
+        strb DATA,[r1, PC0]
+#endif
 #endif    
-        
         lsl r0,#2
         add r0,JUMP_TABLE
         ldr r1,[r0]
@@ -313,51 +348,31 @@ romc03:
 	// 00011 	03 	L,S 	Similar to 00, except that it is used for Immediate Operand fetches (using PC0) instead of
 	//				instruction fetches. 
         check_map PC0,r1
-#ifndef DEBUG_STATES        
         beq romc00_cont
-#endif        
-
-#ifdef STORE_BUS_DATA  
-        read_data_bus r0,r1
-        mov r1, MEMORY
-        strb r0,[r1, PC0]
-
-#else        
         mov r1, MEMORY
         ldrb r0, [r1, PC0]
-        //write_data_bus r0,r1 //_NO_NO
-//#error "doe"        
-#endif        
+        write_data_bus r0,r1 
+
 romc00_cont:
         add PC0,#1
-        and PC0,WORD_MASK
+        ldr r0, =0xffff
+        and PC0,r0
         b romcloop
         
 romc01:
 	//00001 	01 	L 	The device whose address space includes the contents of the PC0 register must place on the data bus
 	//				the contents of the memory location addressed by PC0; then all devices add the 8-bit value on the data
 	//				bus, as as signed binary number, to PC0. 
-#ifndef STORE_BUS_DATA 
         check_map PC0,r1
         beq romc01_cont
         mov r1, MEMORY
         ldsb r0,[r1, PC0]
-        //write_data_bus r0,r1 //_NO_NO
-        b romc01_cont2
-#endif        
+        write_data_bus r0,r1 
 romc01_cont:
-        read_data_bus r0,r1
-#ifdef STORE_BUS_DATA 
-        mov r1, MEMORY
-        strb r0,[r1, PC0]
-#endif              
-romc01_cont2:
-
-        sxtb_macro r1,r0
+        sxtb r1,DATA
         add PC0,r1
-        and PC0,WORD_MASK
-
-
+        ldr r1, =0xffff
+        and PC0,r1
         b romcloop
 
 romc02:
@@ -365,34 +380,34 @@ romc02:
 	//				place on the data bus the contents of the memory location addressed by DC0; then all devices
 	//				increment DC0. 
 #ifdef STORE_BUS_DATA 
-        read_data_bus r0,r1
         mov r1, MEMORY
-        strb r0,[r1, DC0]
-#else        
+        strb DATA,[r1, DC0]
+#endif        
         check_map DC0,r1
         beq romc02_cont
         mov r1, MEMORY
         ldrb r0,[r1, DC0]
-        //write_data_bus r0,r1 //_NO_NO
-#endif        
+        write_data_bus r0,r1 
+        
 romc02_cont:
         add DC0,#1
-        and DC0,WORD_MASK
+        ldr r1, =0xffff
+        and DC0,r1
         b romcloop
 
 romc04:
 	//00100 	04 	S 	Copy the contents of PC1 into PC0. 
         mov PC0,PC1
+        ldr r1, =0xffff
+        and PC0,r1
         b romcloop
         
 romc05:
 	//00101 	05 	L 	Store the data bus contents into the memory location pointed to by DC0; increment DC0. 
-#ifndef STORE_BUS_DATA         
         check_map DC0,r1
         bpl romc05_cont
-#endif        
-        read_data_bus r1,r0
-        strb r1,[r0, DC0]
+        mov r1, MEMORY
+        strb DATA,[r1, DC0]
 romc05_cont:
         b romcloop
        
@@ -402,13 +417,13 @@ romc06:
         beq romc06_cont
         mov r0,DC0
         lsr r0,#8
-#ifdef DEBUG_STATES
-        mov r1,DEBUG_VAL
+#ifdef DEBUG_STATES_ROMC
+        ldr r1,=debug_val
         add r1,#DUMP_VAL
         add r1,#6
         strb r0,[r1]
 #endif        
-        // write_data_bus r0,r1 // _NO_NO
+        write_data_bus r0,r1 
 romc06_cont:
         b romcloop
         
@@ -418,7 +433,7 @@ romc07:
         beq romc07_cont
         mov r0,PC1
         lsr r0,#8
-        // write_data_bus r0,r1 // _NO_NO
+        write_data_bus r0,r1 
 romc07_cont:
         b romcloop
 
@@ -428,9 +443,8 @@ romc08:
         mov PC1,PC0
         mov PC0,#0
 #ifdef DEBUG_STATES  
-       // set_debug_pin DEBUG_PIN_1_SHIFT,r1
+        set_debug_pin DEBUG_PIN_1_SHIFT,r1
 #endif       
-
         b romcloop
         
 romc09:
@@ -439,22 +453,22 @@ romc09:
         check_map DC0,r1
         beq romc09_cont
 #ifdef DEBUG_STATES
-        mov r1,DEBUG_VAL
+        ldr r1,=debug_val
         add r1,#DUMP_VAL
         add r1,#9
         strb DC0,[r1]
 #endif        
 
-        // write_data_bus_masked DC0,r1 // _NO_NO
+        write_data_bus_masked DC0,r1
 romc09_cont:
         b romcloop
         
 romc0a:
 	//01010 	0A 	L 	All devices add the 8-bit value on the data bus, treated as a signed binary number, to the data counter. 
-        read_data_bus r0,r1
-        sxtb_macro r1,r0
+        sxtb r1,DATA
         add DC0,r1
-        and DC0,WORD_MASK
+        ldr r1, =0xffff
+        and DC0,r1
         b romcloop
        
 romc0b:
@@ -462,7 +476,7 @@ romc0b:
 	//				the data bus. 
         check_map PC1,r1
         beq romc0b_cont
-        // write_data_bus_masked PC1,r1 //_NO_NO
+        write_data_bus_masked PC1,r1 
 romc0b_cont:
         b romcloop
 
@@ -472,25 +486,24 @@ romc0c:
 	//				been placed on the data bus into the low order byte of PC0. 
         check_map PC0,r1
         beq romc0c_cont
-#ifndef DEBUG_STATES        
         mov r1,MEMORY
         ldrb r0,[r1, PC0]
-        //write_data_bus r0,r1 // _NO_NO
-	b romc0c_cont_read
-#endif        
+        write_data_bus r0,r1 
+        mov DATA,r0
 romc0c_cont:
-        read_data_bus r0,r1
-romc0c_cont_read:
         ldr r1,=0xff00
         and PC0, r1
-        orr PC0, r0
+        orr PC0, DATA
+        ldr r1, =0xffff
+        and PC0,r1
         b romcloop
 
 romc0d:
 	//01101 	0D 	S 	All devices store in PC1 the current contents of PC0, incremented by 1; PC0 is unaltered. 
         mov PC1,PC0
         add PC1,#1
-        and PC1,WORD_MASK
+        ldr r1, =0xffff
+        and PC1,r1
         b romcloop
 
 romc0e:
@@ -498,26 +511,15 @@ romc0e:
 	//				adressed by PC0 onto the data bus. The value on the data bus is then moved to the low order byte
 	//				of DC0 by all devices 
         check_map PC0,r1
-#ifndef DEBUG_STATES              
         beq romc0e_cont
         mov r1,MEMORY
         ldrb r0,[r1, PC0]
-        // write_data_bus r0,r1 // _NO_NO
-	b romc0e_cont_read
-#endif        
+        write_data_bus r0,r1 
+        mov DATA,r0
 romc0e_cont:
-        read_data_bus r0,r1
-romc0e_cont_read:
         ldr r1,=0xff00
         and DC0, r1
-        orr DC0, r0
-#ifdef STORE_BUS_DATA 
-        mov r1, MEMORY
-        strb r0,[r1, PC0]
-        add PC0,#1
-        and PC0,WORD_MASK
-#endif        
-
+        orr DC0, DATA
 romc0f: 
 	//01111 	0F 	L 	The interrupting device with highest priority must place the low order byte of the interrupt vector on the
 	//				data bus. All devices must copy the contents of PC0 into PC1. All devices must move the contents of
@@ -532,37 +534,24 @@ romc11:
 	//				addressed memory word onto the data bus. All devices must then move the contents of the data bus
 	//				to the upper byte of DC0. 
         check_map PC0,r1
-#ifndef DEBUG_STATES              
         beq romc11_cont
         mov r1,MEMORY
         ldrb r0,[r1, PC0]
-        // write_data_bus r0,r1 //_NO_NO
-	b romc11_cont_read
-#endif        
+        write_data_bus r0,r1 
+        mov DATA,r0
 romc11_cont:
-        read_data_bus r0,r1
-romc11_cont_read:
-        lsl r0,#8
+        lsl DATA,#8
         and DC0, r1
-        orr DC0, r0
-#ifdef STORE_BUS_DATA2
-        mov r1, MEMORY
-        lsr r0,#8
-        strb r0,[r1, PC0]
-        add PC0,#1
-        and PC0,WORD_MASK
-#endif        
-
+        orr DC0, DATA
         b romcloop
 
 romc12:
 	//10010 	12 	L 	All devices copy the contents of PC0 into PC1. All devices then move the contents of the data bus into
 	//				the low order byte of PC0. 
         mov PC1,PC0
-        read_data_bus r0,r1
-        lsl r1,#8   
+        ldr r1,=0xff00   
         and PC0,PC0, r1
-        orr PC0,PC0, r0
+        orr PC0,PC0, DATA
         b romcloop
 romc13:
 	//10011 	13 	L 	The interrupting device with highest priority must move the high order half of the interrupt vector onto
@@ -575,76 +564,73 @@ romc13:
 
 romc14:
 	//10100 	14 	L 	All devices move the contents of the data bus into the high order byte of PC0.         
-        read_data_bus r0,r1
+        ldr r1,=0x00ff
         and PC0,r1
-#ifdef DEBUG_STATES
-        mov r1,DEBUG_VAL
+#ifdef DEBUG_STATES_ROMC
+        ldr r1,=debug_val
         add r1,#DUMP_VAL
         add r1,#0x14
-        strb r0,[r1]
+        strb DATA,[r1]
 #endif    
-        lsl r0,#8
-        orr PC0,r0
+        lsl DATA,#8
+        orr PC0,DATA
+        ldr r1, =0xffff
+        and PC0,r1
         b romcloop
 
 romc15:
 	//10101 	15 	L 	All devices move the contents of the data bus into the high order byte of PC1.
-        read_data_bus r0,r1
+        ldr r1,=0x00ff
         and PC1,r1
-        lsl r0,#8
-        orr PC1,r0
+        lsl DATA,#8
+        orr PC1,DATA
         b romcloop
 
 romc16:
 	//10110 	16 	L 	All devices move the contents of the data bus into the high order byte of DC0. 
-        read_data_bus r0,r1
-#ifdef DEBUG_STATES
-        mov r1,DEBUG_VAL
+#ifdef DEBUG_STATES_ROMC
+        ldr r1,=debug_val
         add r1,#DUMP_VAL
         add r1,#0x16
-        strb r0,[r1]
+        strb DATA,[r1]
 #endif        
         mov r1,#0xff
         and DC0,r1
-        lsl r0,#8
-        orr DC0,r0
+        lsl DATA,#8
+        orr DC0,DATA
         b romcloop
 
 romc17:
-	//10111 	17 	L 	All devices move the contents of the data bus into the low order byte of PC0. 
-        //wait_for_phi_falling
-        read_data_bus r0,r1
+	//10111 	17 	L 	All devices move the contents of the data bus into the low order byte of PC0.        
         ldr r1,=0xff00
         and PC0,r1
-        orr PC0,r0
-#ifdef DEBUG_STATES
-        mov r1,DEBUG_VAL
+        orr PC0,DATA
+#ifdef DEBUG_STATES_ROMC
+        ldr r1,=debug_val
         add r1,#DUMP_VAL
         add r1,#0x17
-        strb r0,[r1]
+        strb DATA,[r1]
 #endif           
         b romcloop
 
 romc18:
 	//11000 	18 	L 	All devices move the contents of the data bus into the low order byte of PC1. 
-        read_data_bus r0,r1
         ldr r1,=0xff00
         and PC1,r1
-        orr PC1,r0
+        orr PC1,DATA
         b romcloop
 
 romc19:
 	//11001 	19 	L 	All devices move the contents of the data bus into the low order byte of DC0. 
-        read_data_bus r0,r1
 #ifdef DEBUG_STATES
-        mov r1,DEBUG_VAL
+        ldr r1,=debug_val
         add r1,#DUMP_VAL
         add r1,#0x19
-        strb r0,[r1]
+        strb DATA,[r1]
 #endif
         ldr r1,=0xff00
         and DC0,r1
-        orr DC0,r0
+        orr DC0,DATA
 romc1a:
 	//11010 	1A 	L 	During the prior cycle, an I/O port timer or interrupt control register was addressed; the device
 	//containing the addressed port must move the current contents of the data bus into the addressed port. 

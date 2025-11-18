@@ -6,8 +6,16 @@ endif()
 
 # initialize the SDK based on PICO_SDK_PATH and BOARD config
 # note: this must happen before project()
+
 set(PICO_BOARD_HEADER_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/rp2040")
 set(PICO_BOARD "pico")
+set(PICO_COPY_TO_RAM 1)
+add_compile_definitions(SKpico PICO_NO_FPGA_CHECK=1)
+add_compile_definitions(SKpico PICO_BARE_METAL=1)
+add_compile_definitions(SKpico PICO_CXX_ENABLE_EXCEPTIONS=0)
+add_compile_definitions(SKpico PICO_STDIO_UART=0)
+add_compile_definitions(SKpico PICO_COPY_TO_RAM=1)
+
 include(pico_sdk_import.cmake)
 project(saba_module C CXX ASM)
 # initialize the Raspberry Pi Pico SDK
@@ -33,7 +41,7 @@ target_include_directories(mcurses
 set_property(SOURCE modul/romc.S APPEND PROPERTY LANGUAGE ASM )
 
 add_compile_definitions(DEBUG_STATES)
-add_compile_definitions(STORE_BUS_DATA)  # Debug-feature, read from bus, instead of writing
+#add_compile_definitions(STORE_BUS_DATA)  # Debug-feature, read from bus, instead of writing
 
 # eprom_emulator: simulate an Eprom, to load games from flash
 add_executable(eprom_emulator

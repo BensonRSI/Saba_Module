@@ -18,6 +18,7 @@
 #include <pico/stdlib.h>
 #include <pico/util/queue.h>
 #include <hardware/gpio.h>
+#include <hardware/structs/bus_ctrl.h>
 
 #include "common.h"
 
@@ -34,8 +35,8 @@ uint8_t memory[EMULATED_MEMSIZE];
 #endif
 
 const uint8_t memory_map[64] = {
-    1,    /* 0000 */
-    1,    /* 0400 */
+    0,    /* 0000 */
+    0,    /* 0400 */
     1,    /* 0800 */
     1,    /* 0c00 */
     1,    /* 1000 */
@@ -103,8 +104,10 @@ const uint8_t memory_map[64] = {
 extern void romc(void);
 
 #ifdef DEBUG_STATES
-volatile uint8_t debug_val[34 * 2] = {
+volatile uint8_t debug_val[18000] = {
     0xff,
+    0xff,
+
 };
 #endif
 
@@ -114,19 +117,23 @@ volatile uint8_t debug_val[34 * 2] = {
 
 static inline void bus_init()
 {
-   gpio_init_mask(DATABUS_MASK | ROMC_MASK | WRITE_MASK | PHI_MASK | IRQ_IN_MASK | IRQ_OUT_MASK | DB_DIR_MASK | DB_OE_MASK | TEST_PIN0_MASK | TEST_PIN1_MASK);
+   gpio_init_mask(DATABUS_MASK | ROMC_MASK | WRITE_MASK | PHI_MASK | IRQ_IN_MASK | IRQ_OUT_MASK | DB_DIR_MASK | DB_OE_MASK | TEST_PIN0_MASK | TEST_PIN1_MASK | TEST_PIN2_MASK);
    gpio_set_dir_in_masked(DATABUS_MASK | ROMC_MASK | WRITE_MASK | PHI_MASK | IRQ_IN_MASK | IRQ_OUT_MASK);
 
    gpio_put_masked(DB_DIR_MASK, DB_DIR_IN);    // Make sure DB is not output on main-bus
    gpio_put_masked(DB_OE_MASK, DB_OE_ENABLED); // activate Output
 
-   gpio_set_dir_out_masked(DB_OE_MASK | DB_DIR_MASK | TEST_PIN1_MASK | TEST_PIN0_MASK);
+   gpio_set_dir_out_masked(DB_OE_MASK | DB_DIR_MASK | TEST_PIN0_MASK | TEST_PIN1_MASK |  TEST_PIN2_MASK);
 
    gpio_clr_mask(DB_DIR_MASK); // Make sure DB is not output on main-bus
    gpio_clr_mask(DB_OE_MASK);  // activate Output
 
    gpio_set_mask(TEST_PIN0_MASK); // activate Output
    gpio_set_mask(TEST_PIN1_MASK); // activate Output
+   gpio_set_mask(TEST_PIN2_MASK); // activate Output
+
+   // Set Core 1 priority to high
+   bus_ctrl_hw->priority = BUSCTRL_BUS_PRIORITY_PROC1_BITS;
 }
 
 void rampattern(void)
@@ -185,8 +192,8 @@ void bus_run()
       ;
 #else
    // Jump to ROMC decoder , which never returns
-  romc();
-  while (1)
+   romc();
+   while (1)
       ;
 
 #endif

@@ -9,6 +9,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdint.h>
 #include <pico/multicore.h>
 #include <pico/stdlib.h>
 #include <pico/util/queue.h>
@@ -18,10 +19,12 @@
 #include "getaline.h"
 #include "mcurses.h"
 #include "hexedit.h"
+#include "bus.h"
+#include "demo.h"
 
 extern uint8_t memory[0x10000];
 #ifdef DEBUG_STATES
-extern volatile uint8_t debug_val[34 * 2];
+extern volatile uint8_t debug_val[18000];
 int trace_dump = 0;
 uint16_t print_buffer[2000];
 #endif
@@ -56,6 +59,43 @@ void fill_ram(uint8_t val)
    memset(memory, val, sizeof(memory));
 }
 
+void get_tracedump(int offset,int length){
+
+   uint16_t print_val_old = 0;
+   int i;
+   for (i = 0; i < length;)
+   {
+      uint16_t print_val = debug_val[0+offset] + (debug_val[1+offset] * 0x100); 
+      // printf("PC: 0x%04x   0x%04x\n", print_val, print_val_old);
+      if (print_val != print_val_old)
+      {
+         print_buffer[i] = print_val;
+         print_val_old = print_val;
+         i++;
+      }
+   }
+
+
+}
+void get_tracedump_x(int offset,int length){
+
+   uint16_t print_val_old = 0;
+   int i;
+   for (i = 0; i < length;)
+   {
+      uint16_t print_val = debug_val[0+offset] + (debug_val[1+offset] * 0x100); 
+      // printf("PC: 0x%04x   0x%04x\n", print_val, print_val_old);
+      if ((print_val &0xff00) != (print_val_old& 0xff00))
+      {
+         print_buffer[i] = print_val;
+         print_val_old = print_val;
+         i++;
+      }
+   }
+
+
+}
+
 void print_help()
 {
 
@@ -66,11 +106,15 @@ void print_help()
    printf("          of TRSI\n\n");
    printf(" h: hexedit for memdump\n");
    printf(" c: print clocksettings\n");
-   printf(" t: trace current PC\n");
+   printf(" p: trace current PC0\n");
+   printf(" j: trace current PC0, on highbyte change\n");
+   printf(" t: trace current PC1\n");
+   printf(" d: trace current DC0\n");
    printf(" f: fill mem with 0\n");
-   printf(" d: print ROM-States\n\n");
+   printf(" s: print ROM-States\n\n");
+   printf(" y: clear debug-pins\n\n");
 }
-
+int doe_val=1;
 void console_rp2040()
 {
    char *in;
@@ -94,36 +138,66 @@ void console_rp2040()
       fill_ram(0);
       break;
 #ifdef DEBUG_STATES
-   case 't':
-      trace_dump++;
-      printf("Tracedump State: %d\n", trace_dump);
+   case 'x':
+   {
+      uint16_t print_val = debug_val[0] + (debug_val[1] * 0x100); 
+      printf("PC0: 0x%04x\n", print_val);
+   }
+      break;
+   case 'p':
+      //get_tracedump(0,2000);    
+   {
+      uint32_t* print_p=(uint32_t*)&debug_val[4];
+      for (int i = 0; i < 200; i++)
       {
-         uint16_t print_val_old = 0;
-         int i;
-         for (i = 0; i < 2000;)
-         {
-            uint16_t print_val = debug_val[0] + (debug_val[1] * 0x100);
-            // printf("PC: 0x%04x   0x%04x\n", print_val, print_val_old);
-            if (print_val != print_val_old)
-            {
-               print_buffer[i] = print_val;
-               print_val_old = print_val;
-               i++;
-            }
-         }
-         for (i = 0; i < 2000; i++)
-         {
-            printf("PC: 0x%04x\n", print_buffer[i]);
-         }
+        if ((i%8) == 0) {
+         printf("\nPC0: ");
+        }
+         printf ("0x%04x ", *print_p++);
+         printf ("0x%02x, ", *print_p++);
       }
+   }
+      break;
+   case 'j':
+      get_tracedump_x(0,2);
+      for (int i = 0; i < 2; i++)
+      {
+        printf("PC0: 0x%04x\n", print_buffer[i]);
+      }
+      
+      break;
+   case 't':
+      get_tracedump(4,5);
+      for (int i = 0; i < 5; i++)
+      {
+        printf("PC1: 0x%04x\n", print_buffer[i]);
+      }
+      
+      break;
+   case 'd':
+      get_tracedump(8,50);
+      for (int i = 0; i < 50; i++)
+      {
+        printf("DC0: 0x%04x\n", print_buffer[i]);
+      }
+      
       break;
 
-   case 'd':
+   case 's':
       for (int i = 0; i < 32; i++)
       {
          printf("ROMC state %d 0x%02x val 0x%02x\n", i, debug_val[i], debug_val[i + 32]);
       }
       break;
+
+   case 'y':
+       gpio_put(TEST_PIN0_SHIFT, doe_val);
+       gpio_put(TEST_PIN1_SHIFT, 0);
+       gpio_put(TEST_PIN2_SHIFT, 0);
+       doe_val=1-doe_val;
+
+      break;
+
 #endif
 
    default:
@@ -149,9 +223,11 @@ void console_run()
    setFunction_writeMemory(FunctionPointer_writeModuleMemory);
    initscr();
 
+   memset ((void *)debug_val,0,18000);
    welcome();
    debug_clocks();
    getaline_init();
+   memcpy(&memory[0x800],demo_data,sizeof(demo_data));
    for (;;)
    {
       console_rp2040();

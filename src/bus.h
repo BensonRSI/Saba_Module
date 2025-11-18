@@ -40,6 +40,9 @@
 #define TEST_PIN1_SHIFT 19
 #define TEST_PIN1_MASK 1 << TEST_PIN1_SHIFT
 
+#define TEST_PIN2_SHIFT 20
+#define TEST_PIN2_MASK 1 << TEST_PIN2_SHIFT
+
 
 #define DB_DIR_IN 1
 #define DB_DIR_OUT 0
