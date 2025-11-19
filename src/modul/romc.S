@@ -58,7 +58,7 @@
         JUMP_TABLE .req r12	// holds base of "jumptable"
         MEMORY .req r11		// holds base to "memory"
         MEMORY_MAP .req r10	// holds base to "memory_map"
-        WORD_MASK .req r7	// holds 0xffff
+        WORD_MASK = 0xffff	// holds 0xffff
         DATA      .req r7	// holds the Data from the bus
         PC0 .req r6		// PC0 reg
         PC1 .req r5		// PC1 reg
@@ -159,6 +159,11 @@
         mov \reg1,#1
         lsl \reg1,#WRITE_SHIFT
 
+0:
+        ldr \reg0,[SIO_REG, #GPIO_IN]
+        and \reg0,\reg1
+        beq 0b
+
 1:
         ldr \reg0,[SIO_REG, #GPIO_IN]
         and \reg0,\reg1
@@ -226,7 +231,8 @@
         //#endif
        
        .macro read_data_bus reg0, reg1
-        wait_for_write_rising \reg0,\reg1
+        //wait_for_write_rising \reg0,\reg1
+        wait_for_phi_falling \reg0,\reg1
         mov \reg1,#DB_MASK
         ldr \reg0,[SIO_REG, #GPIO_IN]
         and \reg0,\reg1
@@ -355,8 +361,8 @@ romc03:
 
 romc00_cont:
         add PC0,#1
-        ldr r0, =0xffff
-        and PC0,r0
+        ldr r1, =WORD_MASK
+        and PC0,r1
         b romcloop
         
 romc01:
@@ -366,12 +372,13 @@ romc01:
         check_map PC0,r1
         beq romc01_cont
         mov r1, MEMORY
-        ldsb r0,[r1, PC0]
+        ldrb r0,[r1, PC0]
         write_data_bus r0,r1 
+        mov DATA,r0
 romc01_cont:
         sxtb r1,DATA
         add PC0,r1
-        ldr r1, =0xffff
+        ldr r1, =WORD_MASK
         and PC0,r1
         b romcloop
 
@@ -391,14 +398,14 @@ romc02:
         
 romc02_cont:
         add DC0,#1
-        ldr r1, =0xffff
+        ldr r1, =WORD_MASK
         and DC0,r1
         b romcloop
 
 romc04:
 	//00100 	04 	S 	Copy the contents of PC1 into PC0. 
         mov PC0,PC1
-        ldr r1, =0xffff
+        ldr r1, =WORD_MASK
         and PC0,r1
         b romcloop
         
@@ -467,7 +474,7 @@ romc0a:
 	//01010 	0A 	L 	All devices add the 8-bit value on the data bus, treated as a signed binary number, to the data counter. 
         sxtb r1,DATA
         add DC0,r1
-        ldr r1, =0xffff
+        ldr r1, =WORD_MASK
         and DC0,r1
         b romcloop
        
@@ -494,7 +501,7 @@ romc0c_cont:
         ldr r1,=0xff00
         and PC0, r1
         orr PC0, DATA
-        ldr r1, =0xffff
+        ldr r1, =WORD_MASK
         and PC0,r1
         b romcloop
 
@@ -502,7 +509,7 @@ romc0d:
 	//01101 	0D 	S 	All devices store in PC1 the current contents of PC0, incremented by 1; PC0 is unaltered. 
         mov PC1,PC0
         add PC1,#1
-        ldr r1, =0xffff
+        ldr r1, =WORD_MASK
         and PC1,r1
         b romcloop
 
@@ -540,6 +547,7 @@ romc11:
         write_data_bus r0,r1 
         mov DATA,r0
 romc11_cont:
+        ldr r1,=0x00ff
         lsl DATA,#8
         and DC0, r1
         orr DC0, DATA
@@ -550,8 +558,8 @@ romc12:
 	//				the low order byte of PC0. 
         mov PC1,PC0
         ldr r1,=0xff00   
-        and PC0,PC0, r1
-        orr PC0,PC0, DATA
+        and PC0, r1
+        orr PC0, DATA
         b romcloop
 romc13:
 	//10011 	13 	L 	The interrupting device with highest priority must move the high order half of the interrupt vector onto
@@ -574,7 +582,7 @@ romc14:
 #endif    
         lsl DATA,#8
         orr PC0,DATA
-        ldr r1, =0xffff
+        ldr r1, =WORD_MASK
         and PC0,r1
         b romcloop
 
@@ -584,6 +592,8 @@ romc15:
         and PC1,r1
         lsl DATA,#8
         orr PC1,DATA
+        ldr r1, =WORD_MASK
+        and PC1,r1
         b romcloop
 
 romc16:
@@ -598,6 +608,8 @@ romc16:
         and DC0,r1
         lsl DATA,#8
         orr DC0,DATA
+        ldr r1, =WORD_MASK
+        and DC0,r1
         b romcloop
 
 romc17:
