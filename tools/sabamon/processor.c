@@ -2,11 +2,16 @@
 #include "target_memory.h"
 
 extern Opcode *get_8085_opcode_by_index(tByte index);
+extern Opcode *get_6502_opcode_by_index(tByte index);
 extern Opcode *get_f3850_opcode_by_index(tByte index);
 
 /* function pointer for a specific processor */
 #ifdef PROZ_8085
 Opcode *(*get_opcode_by_index_func)(tByte index) = get_8085_opcode_by_index;
+#endif
+
+#ifdef PROZ_6502
+Opcode *(*get_opcode_by_index_func)(tByte index) = get_6502_opcode_by_index;
 #endif
 
 #ifdef PROZ_F3850
@@ -27,10 +32,15 @@ int get_objcode_length(tByte opcode)
 		case REL_ARG_0:
 		case REL_ARG_1:
 		case REL_ARG_2:
+                case BYTE_ARG_X:
+                case BYTE_ARG_Y:
+                case BYTE_IND_X:
+                case BYTE_IND_Y:
 			return 2;
 		break;
                 case BWORD_ARG:
 		case WORD_ARG:
+                case WORD_ARG_IND:
 			return 3;
 		break;
 		default:

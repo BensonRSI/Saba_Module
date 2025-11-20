@@ -115,6 +115,25 @@ int get_hex(tByte *line, int *pos, int size, int *error_pos, int digits)
     }
 }
 
+static int check_hex(tByte *line, int pos, int digits)
+{
+    int i;
+    for(i=0; i < digits; ++i)
+    {
+        char c = line[pos+i];
+        if (!isxdigit(c))
+        {
+            return 0;
+        }
+    }
+    char c = line[pos+i];
+    if (isxdigit(c))
+    {
+        return 0;
+    }
+    return 1;
+}
+
 static int get_start_end(tByte *line, int *pos, int size, int *error_pos,
                          int *start, int *end)
 {
@@ -750,11 +769,29 @@ int assemble(EditScreen *screen, tByte *line, int *pos, int *error_pos, tByte *m
         }
         if (strncmp(opcode->mnemonic, line + *pos, strlen(opcode->mnemonic)) == 0)
         {
+            int pos_for_check =  *pos + strlen(opcode->mnemonic);
+            int size_to_check = 2*(get_objcode_length(i)-1);
+            if (!check_hex(line, pos_for_check, size_to_check))
+            {
+                ++opcode;
+                continue;
+            }
+            pos_for_check += size_to_check;
+            const char *postfix = arg_postfix(opcode->arg);
+            
+            if (strncmp(postfix, line + pos_for_check, strlen(postfix)) == 0)
+            {
+                *pos += strlen(opcode->mnemonic);
+                break;
+            }
+
+#if 0            
             if ((opcode->arg != NO_ARG) || (*(line + *pos + strlen(opcode->mnemonic)) == ' '))
             {
                 *pos += strlen(opcode->mnemonic);
                 break;
             }
+#endif
         }
         ++opcode;
     }
@@ -764,6 +801,9 @@ int assemble(EditScreen *screen, tByte *line, int *pos, int *error_pos, tByte *m
         switch (opcode->arg)
         {
         case WORD_ARG:
+        case WORD_ARG_X:
+        case WORD_ARG_Y:
+        case WORD_ARG_IND:
             val = get_hex(line, pos, screen->cols,error_pos, 4);
             if (val < 0)
             {
@@ -790,6 +830,10 @@ int assemble(EditScreen *screen, tByte *line, int *pos, int *error_pos, tByte *m
             ++(*end);
             break;
         case BYTE_ARG:
+        case BYTE_ARG_X:
+        case BYTE_ARG_Y:
+        case BYTE_IND_X:
+        case BYTE_IND_Y:
             val = get_hex(line, pos, screen->cols,error_pos, 2);
             if (val < 0)
             {
