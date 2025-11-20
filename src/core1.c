@@ -33,6 +33,7 @@ uint16_t memory[EMULATED_MEMSIZE];
 #define EMULATED_MEMSIZE 0x10000
 uint8_t memory[EMULATED_MEMSIZE];
 #endif
+volatile uint8_t reset_triggered = 0;
 
 const uint8_t memory_map[64] = {
     0,    /* 0000 */

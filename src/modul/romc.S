@@ -7,6 +7,7 @@
         .global romc
         .global memory
         .global memory_map
+        .global reset_triggered
 #ifdef DEBUG_STATES        
         .global debug_val
         DUMP_VAL = 0x020
@@ -78,6 +79,7 @@
         lsr \scratch,#10
         add \scratch,MEMORY_MAP
         ldrb \scratch,[\scratch]
+        sxtb \scratch,\scratch
         orr \scratch,\scratch
         .endm
 
@@ -447,6 +449,9 @@ romc07_cont:
 romc08:
 	//01000 	08 	L 	All devices copy the contents of PC0 into PC1. The CPU outputs zero on the data bus in this ROMC
 	//				state. Load the data bus into both halves of PC0, thus clearing the register. 
+        ldr r1,=reset_triggered
+        mov r0,#1
+        strb r0,[r1]             // Signal to core 0 that reset has been triggered, module-code can be copied now
         mov PC1,PC0
         mov PC0,#0
 #ifdef DEBUG_STATES  

@@ -20,9 +20,12 @@
 #include "mcurses.h"
 #include "hexedit.h"
 #include "bus.h"
-#include "demo.h"
+#include "demo.h" // default demo data
+#include "xmodem.h"
 
 extern uint8_t memory[0x10000];
+extern volatile uint8_t reset_triggered;
+uint8_t upload_memory[0x2000]; /* Maximum size we can use = 8k*/
 #ifdef DEBUG_STATES
 extern volatile uint8_t debug_val[18000];
 int trace_dump = 0;
@@ -47,6 +50,23 @@ void pokeModuleMemory(uint16_t address, uint8_t value)
 uint8_t (*FunctionPointer_readModuleMemory)(uint16_t address) = peekModuleMemory;              // set default function
 void (*FunctionPointer_writeModuleMemory)(uint16_t address, uint8_t value) = pokeModuleMemory; // set default function
 
+/* For xmodem receive, we need to provide the HW specific functions*/
+int _inbyte(int msec)
+{
+
+   int c = getchar_timeout_us(msec * 1000);
+   if (c == PICO_ERROR_TIMEOUT)
+   {
+      return -1;
+   }
+   return c;
+}
+void _outbyte(unsigned char c)
+{
+
+   putchar(c);
+}
+
 void console_set_crlf(bool enable)
 {
    uart_set_translate_crlf(uart0, enable);
@@ -59,13 +79,14 @@ void fill_ram(uint8_t val)
    memset(memory, val, sizeof(memory));
 }
 
-void get_tracedump(int offset,int length){
+void get_tracedump(int offset, int length)
+{
 
    uint16_t print_val_old = 0;
    int i;
    for (i = 0; i < length;)
    {
-      uint16_t print_val = debug_val[0+offset] + (debug_val[1+offset] * 0x100); 
+      uint16_t print_val = debug_val[0 + offset] + (debug_val[1 + offset] * 0x100);
       // printf("PC: 0x%04x   0x%04x\n", print_val, print_val_old);
       if (print_val != print_val_old)
       {
@@ -74,26 +95,23 @@ void get_tracedump(int offset,int length){
          i++;
       }
    }
-
-
 }
-void get_tracedump_x(int offset,int length){
+void get_tracedump_x(int offset, int length)
+{
 
    uint16_t print_val_old = 0;
    int i;
    for (i = 0; i < length;)
    {
-      uint16_t print_val = debug_val[0+offset] + (debug_val[1+offset] * 0x100); 
+      uint16_t print_val = debug_val[0 + offset] + (debug_val[1 + offset] * 0x100);
       // printf("PC: 0x%04x   0x%04x\n", print_val, print_val_old);
-      if ((print_val &0xff00) != (print_val_old& 0xff00))
+      if ((print_val & 0xff00) != (print_val_old & 0xff00))
       {
          print_buffer[i] = print_val;
          print_val_old = print_val;
          i++;
       }
    }
-
-
 }
 
 void print_help()
@@ -106,22 +124,31 @@ void print_help()
    printf("          of TRSI\n\n");
    printf(" h: hexedit for memdump\n");
    printf(" c: print clocksettings\n");
+#ifdef DEBUG_STATES
    printf(" p: trace current PC0\n");
    printf(" j: trace current PC0, on highbyte change\n");
    printf(" t: trace current PC1\n");
    printf(" d: trace current DC0\n");
    printf(" f: fill mem with 0\n");
-   printf(" s: print ROM-States\n\n");
+   printf(" s: print ROM-States\n");
+#endif
+   printf(" u: upload rom-image via xmodem (max 8k)\n");
    printf(" y: clear debug-pins\n\n");
 }
-int doe_val=1;
+int doe_val = 1;
 void console_rp2040()
 {
    char *in;
    bool leave = false;
 
-   in = getaline();
-   switch (in[0])
+   int c = getchar_timeout_us(0);
+   if (c == PICO_ERROR_TIMEOUT)
+   {
+      // no USB/stdin key available — skip blocking read
+      return;
+   }
+   printf("Got key: %d\n", c);
+   switch (c)
    {
    case 'a':
       printf("Doppeldoe\n");
@@ -137,50 +164,56 @@ void console_rp2040()
       printf("Clear Ram\n");
       fill_ram(0);
       break;
+   case 'u':
+      printf("Upload ROM start xmodem transfer now \n");
+      int ret = xmodemReceive(upload_memory, sizeof(upload_memory));
+      printf("Upload complete, %d bytes received\n", ret);
+      break;
 #ifdef DEBUG_STATES
    case 'x':
    {
-      uint16_t print_val = debug_val[0] + (debug_val[1] * 0x100); 
+      uint16_t print_val = debug_val[0] + (debug_val[1] * 0x100);
       printf("PC0: 0x%04x\n", print_val);
    }
-      break;
+   break;
    case 'p':
-      //get_tracedump(0,2000);    
-   {
-      uint32_t* print_p=(uint32_t*)&debug_val[4];
-      for (int i = 0; i < 200; i++)
+      // get_tracedump(0,2000);
       {
-        if ((i%8) == 0) {
-         printf("\nPC0: ");
-        }
-         printf ("0x%04x ", *print_p++);
-         printf ("0x%02x, ", *print_p++);
+         uint32_t *print_p = (uint32_t *)&debug_val[4];
+         for (int i = 0; i < 200; i++)
+         {
+            if ((i % 8) == 0)
+            {
+               printf("\nPC0: ");
+            }
+            printf("0x%04x ", *print_p++);
+            printf("0x%02x, ", *print_p++);
+         }
       }
-   }
       break;
    case 'j':
-      get_tracedump_x(0,2);
+      get_tracedump_x(0, 2);
       for (int i = 0; i < 2; i++)
       {
-        printf("PC0: 0x%04x\n", print_buffer[i]);
+         printf("PC0: 0x%04x\n", print_buffer[i]);
       }
-      
+
       break;
    case 't':
-      get_tracedump(4,5);
+      get_tracedump(4, 5);
       for (int i = 0; i < 5; i++)
       {
-        printf("PC1: 0x%04x\n", print_buffer[i]);
+         printf("PC1: 0x%04x\n", print_buffer[i]);
       }
-      
+
       break;
    case 'd':
-      get_tracedump(8,50);
+      get_tracedump(8, 50);
       for (int i = 0; i < 50; i++)
       {
-        printf("DC0: 0x%04x\n", print_buffer[i]);
+         printf("DC0: 0x%04x\n", print_buffer[i]);
       }
-      
+
       break;
 
    case 's':
@@ -191,10 +224,10 @@ void console_rp2040()
       break;
 
    case 'y':
-       gpio_put(TEST_PIN0_SHIFT, doe_val);
-       gpio_put(TEST_PIN1_SHIFT, 0);
-       gpio_put(TEST_PIN2_SHIFT, 0);
-       doe_val=1-doe_val;
+      gpio_put(TEST_PIN0_SHIFT, doe_val);
+      gpio_put(TEST_PIN1_SHIFT, 0);
+      gpio_put(TEST_PIN2_SHIFT, 0);
+      doe_val = 1 - doe_val;
 
       break;
 
@@ -222,15 +255,23 @@ void console_run()
    setFunction_readMemory(FunctionPointer_readModuleMemory);
    setFunction_writeMemory(FunctionPointer_writeModuleMemory);
    initscr();
-
-   memset ((void *)debug_val,0,18000);
+#ifdef DEBUG_STATES
+   memset((void *)debug_val, 0, 18000);
+#endif
    welcome();
    debug_clocks();
    getaline_init();
-   memcpy(&memory[0x800],demo_data,sizeof(demo_data));
+   memset(upload_memory, 0x00, sizeof(upload_memory));
+   memcpy(upload_memory, demo_data, sizeof(demo_data));
    for (;;)
    {
       console_rp2040();
+      if (reset_triggered)
+      {
+         memcpy(&memory[0x800], upload_memory, sizeof(upload_memory));
+         reset_triggered = 0;
+         printf("System Reset performed\n");
+      }
 #ifdef DEBUG_STATES
       if (trace_dump & 0x01)
       {

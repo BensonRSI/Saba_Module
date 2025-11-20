@@ -35,13 +35,15 @@ add_library(mcurses
    mcurses/src/hexedit.c
    )
 target_include_directories(mcurses
-   PUBLIC mcurses/src
+   PUBLIC mcurses/src   
    )
 
 set_property(SOURCE modul/romc.S APPEND PROPERTY LANGUAGE ASM )
 
 add_compile_definitions(DEBUG_STATES)
 #add_compile_definitions(STORE_BUS_DATA)  # Debug-feature, read from bus, instead of writing
+add_compile_definitions(RECEIVE_FULL_FILE)  # Transfer full file via xmodem, not just 256 bytes
+
 
 # eprom_emulator: simulate an Eprom, to load games from flash
 add_executable(eprom_emulator
@@ -50,8 +52,13 @@ add_executable(eprom_emulator
    core1.c
    getaline.c
    modul/romc.S
+   xmodem/xmodem.c
    )
-   
+
+target_include_directories(eprom_emulator
+    PUBLIC $(CMAKE_CURRENT_SOURCE_DIR)/xmodem
+   )
+
 target_link_libraries(eprom_emulator
    mcurses
    pico_stdlib
