@@ -652,16 +652,20 @@ int make_command(EditScreen *screen, tByte *line, int size, int column, int *err
     case 'L':
         return load_file(screen, line, i+1, size, error_pos);
         break;
-	case 'j':
-	case 'J':
-	case 'g':
-	case 'G':
-		init_mem(); /* erase memory */
-		return do_jump(screen, line, i+1, size, error_pos);
-		break;
+    case 'j':
+    case 'J':
+    case 'g':
+    case 'G':
+	init_mem(); /* erase memory */
+	return do_jump(screen, line, i+1, size, error_pos);
+	break;
     case 'p':
     case 'P':
         return play_game(screen, line, i+1, size, error_pos);
+        break;
+    case 'c':
+    case 'C':
+        return change_cpu(screen, line, i);
         break;
     default:
         *error_pos = i;
@@ -881,6 +885,39 @@ rel_arg:
         *error_pos = *pos;
         return ERR_NO_MNEMONIC;
     }
+}
+
+int change_cpu(EditScreen *screen, tByte *line, int pos)
+{
+    const char *proz;
+    do {
+        ++pos;
+        if (pos >= screen->cols)
+        {
+            return ERR_WRONG_ARGS;
+        }
+    } while(line[pos] == ' ');
+
+    proz = change_processor(line+pos);
+    if (proz == NULL)
+    {
+        return ERR_WRONG_ARGS;
+    }
+    do {
+        if (pos < screen->cols)
+        {
+            line[pos++] = *proz++;
+        }
+        else
+        {
+            break;
+        }
+    } while(*proz);
+    if (pos < screen->cols)
+    {
+        line[pos++] = ' ';
+    }
+    return 0;
 }
 
 

@@ -40,5 +40,6 @@ extern int get_objcode_length(tByte opcode);
 extern int get_go_up(tWord adr);
 extern const char *arg_postfix(Argument);
 
+extern const char *change_processor(const char *proc);
 
 #endif

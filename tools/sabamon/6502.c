@@ -7,7 +7,7 @@ static Opcode op6502[256] =
 	{"ora (", BYTE_IND_X, 0, NULL},
 	{"kil02", NO_ARG, 0, NULL},
 	{"slo (", BYTE_IND_X, 0, NULL},
-	{"nop02 ", BYTE_ARG, 0, NULL},
+	{"nop04 ", BYTE_ARG, 0, NULL},
 	{"ora ", BYTE_ARG, 0, NULL},
 	{"asl ", BYTE_ARG, 0, NULL},
 	{"slo ", BYTE_ARG, 0, NULL},

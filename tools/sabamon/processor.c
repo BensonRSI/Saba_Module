@@ -68,3 +68,21 @@ int get_go_up(tWord adr)
 	}
 }
 
+const char *change_processor(const char *proc)
+{
+    switch(*proc)
+    {
+        case '8':
+            get_opcode_by_index_func = get_8085_opcode_by_index;
+            return "8085";
+        case '6':
+            get_opcode_by_index_func = get_6502_opcode_by_index;
+            return "6502";
+        case 'f':
+            get_opcode_by_index_func = get_f3850_opcode_by_index;
+            return "f3850";
+        default:
+            return NULL;
+    }
+}
+

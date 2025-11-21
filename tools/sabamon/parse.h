@@ -20,5 +20,7 @@ extern void make_upline(EditScreen *screen);
 extern void make_downline(EditScreen *screen);
 extern int assemble(EditScreen *screen, tByte *line,
                     int *pos, int *error_pos, tByte *mem, int *end, tWord addr);
+extern int change_cpu(EditScreen *screen, tByte *line,
+                    int pos);
 
 #endif
