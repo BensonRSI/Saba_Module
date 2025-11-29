@@ -4,6 +4,27 @@
 #include "processor.h"
 #include "target_memory.h"
 
+const char *arg_postfix(Argument arg)
+{
+    switch(arg)
+    {
+        case WORD_ARG_IND:
+            return ")";
+        case BYTE_IND_X:
+            return ",x)";
+        case BYTE_IND_Y:
+            return "),y";
+        case WORD_ARG_X:
+        case BYTE_ARG_X:
+            return ",x";
+        case WORD_ARG_Y:
+        case BYTE_ARG_Y:
+            return ",y";
+        default:
+            return " ";
+    }
+}
+
 static void print_nibble(tByte *ptr, int value)
 {
 	if(value > 9)
@@ -65,7 +86,7 @@ void print_disassembly(EditScreen *screen, tWord adr, tByte *mem)
 	int obcode_length;
 	int pos;
 	Opcode *opcode;
-	char *str;
+	const char *str;
 	
 	screen->chars[screen->line][0] = ';';
 	print_hex_value(screen->chars[screen->line]+1, adr, 4);
@@ -94,6 +115,9 @@ void print_disassembly(EditScreen *screen, tWord adr, tByte *mem)
 	switch(opcode->arg)
 	{
 		case WORD_ARG :
+                case WORD_ARG_X:
+                case WORD_ARG_Y:
+                case WORD_ARG_IND:
                         hexArg = mem[1] + 256 * mem[2];
                         hexLen = 4;
 			break;
@@ -102,6 +126,10 @@ void print_disassembly(EditScreen *screen, tWord adr, tByte *mem)
                         hexLen = 4;
 			break;
 		case BYTE_ARG :	
+                case BYTE_ARG_X:
+                case BYTE_ARG_Y:
+                case BYTE_IND_X:
+                case BYTE_IND_Y:
                         hexArg = mem[1];
                         hexLen = 2;
  			break;
@@ -123,6 +151,12 @@ void print_disassembly(EditScreen *screen, tWord adr, tByte *mem)
         if (hexLen > 0)
         {
 	    print_hex_value(screen->chars[screen->line]+pos, hexArg, hexLen);
+            str = arg_postfix(opcode->arg);
+            pos += hexLen; 
+	    while(*str != 0)
+	    {
+		screen->chars[screen->line][pos++] = *str++;
+	    }
         }
         if (opcode->comment)
         {
