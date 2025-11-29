@@ -16,13 +16,8 @@
 #include <pico/multicore.h>
 #include <pico/platform.h>
 #include <pico/binary_info.h>
-#include <hardware/vreg.h>             // Voltage control for overclocking
-#include <hardware/clocks.h>        // Clock control for overclocking
-
-
-bi_decl(bi_program_name("Sorbus Computer Native Core"))
-    bi_decl(bi_program_description("implement an own home computer flavor"))
-        bi_decl(bi_program_url("https://xayax.net/sorbus/"))
+#include <hardware/vreg.h>   // Voltage control for overclocking
+#include <hardware/clocks.h> // Clock control for overclocking
 
 #include "bus.h"
 #include "common.h"
@@ -38,16 +33,19 @@ int main()
    sleep_ms(2000);
 #endif
 
+#if 1
    vreg_set_voltage(VREG_VOLTAGE_1_30);
-   sleep_ms(1);  
-   if (!set_sys_clock_khz(360000, false)) { // 428000 is known to work on some devices
-      //blink_code(BLINK::OVERCLOCK_FAILED);
-   //     //panic("Overclock was unsuccessful");
-       while(1);
+   sleep_ms(1);
+   if (!set_sys_clock_khz(360000, false))
+   { // 428000 is known to work on some devices
+      // blink_code(BLINK::OVERCLOCK_FAILED);
+      //     //panic("Overclock was unsuccessful");
+      while (1)
+         ;
    }
    // for toying with overclocking
    //   set_sys_clock_khz( 133000, false );
-
+#endif
    // setup the bus and run the bus core
    multicore_launch_core1(bus_run);
 

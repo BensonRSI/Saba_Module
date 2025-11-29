@@ -14,17 +14,22 @@ endif
 EXTRA_CMAKE_ARGS += -DPICO_SDK_PATH="$(PICO_SDK_PATH)"
 
 BUILD_DIR ?= $(CURDIR)/build
-BUILD_TOOL_DIR ?= $(CURDIR)/build/picotool
+BUILD_TOOL_DIR ?= $(CURDIR)/build/tools
 SRC_DIR := $(CURDIR)/src
 JOBS ?= 4
 DEFAULT_TARGET ?= $(BUILD_DIR)/eprom_emulator.uf2
 
-.PHONY: all clean distclean release picotool
-
-all: $(PICO_SDK_PATH)/README.md 
+.PHONY: all clean distclean release picotool xmodem_upload
+ 
+all: $(PICO_SDK_PATH)/README.md xmodem_upload
 	cmake -S $(SRC_DIR) -B $(BUILD_DIR) $(EXTRA_CMAKE_ARGS)
 	make -C $(BUILD_DIR) -j$(JOBS) && echo "\nbuild was successful\n"
 
+
+xmodem_upload: tools/xmodem_upload/xmodem_upload.cpp
+	cmake -S tools/xmodem_upload -B $(BUILD_TOOL_DIR)/xmodem_upload_build
+	make -C $(BUILD_TOOL_DIR)/xmodem_upload_build -j$(JOBS)
+	
 go:	/usr/local/bin/picotool all	
 	picotool load $(DEFAULT_TARGET)
 	picotool reboot

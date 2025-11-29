@@ -78,7 +78,7 @@ void fill_ram(uint8_t val)
 
    memset(memory, val, sizeof(memory));
 }
-
+#ifdef DEBUG_STATES
 void get_tracedump(int offset, int length)
 {
 
@@ -96,6 +96,7 @@ void get_tracedump(int offset, int length)
       }
    }
 }
+
 void get_tracedump_x(int offset, int length)
 {
 
@@ -113,7 +114,7 @@ void get_tracedump_x(int offset, int length)
       }
    }
 }
-
+#endif
 void print_help()
 {
 
@@ -124,17 +125,19 @@ void print_help()
    printf("          of TRSI\n\n");
    printf(" h: hexedit for memdump\n");
    printf(" c: print clocksettings\n");
+   printf(" u: upload rom-image via xmodem (max 8k)\n");
+   printf(" f: fill mem with 0\n");
 #ifdef DEBUG_STATES
    printf(" p: trace current PC0\n");
    printf(" j: trace current PC0, on highbyte change\n");
    printf(" t: trace current PC1\n");
    printf(" d: trace current DC0\n");
-   printf(" f: fill mem with 0\n");
+
    printf(" s: print ROM-States\n");
-#endif
-   printf(" u: upload rom-image via xmodem (max 8k)\n");
    printf(" y: clear debug-pins\n\n");
+#endif
 }
+
 int doe_val = 1;
 void console_rp2040()
 {
@@ -154,7 +157,7 @@ void console_rp2040()
       printf("Doppeldoe\n");
       break;
    case 'h':
-      hexedit(0);
+      hexedit(0x800);
       clear();
       break;
    case 'c':

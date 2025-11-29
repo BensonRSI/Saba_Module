@@ -333,7 +333,9 @@ romcloop:
 #endif        
         disable_write r0
         wait_for_phi_falling r0,r1
+#ifdef DEBUG_STATES         
         set_debug_pin DEBUG_PIN_0_SHIFT,r1
+#endif        
         read_romc r0,r1 // r0 holds romc now
        // Add one 2times Wait 4 Phi falling here ?
         // DATA is used as Data-Bus store
@@ -418,6 +420,9 @@ romc05:
         mov r1, MEMORY
         strb DATA,[r1, DC0]
 romc05_cont:
+        add DC0,#1
+        ldr r1, =WORD_MASK
+        and DC0,r1
         b romcloop
        
 romc06:
@@ -532,13 +537,26 @@ romc0e_cont:
         ldr r1,=0xff00
         and DC0, r1
         orr DC0, DATA
+        b romcloop
 romc0f: 
 	//01111 	0F 	L 	The interrupting device with highest priority must place the low order byte of the interrupt vector on the
 	//				data bus. All devices must copy the contents of PC0 into PC1. All devices must move the contents of
 	//				the data bus into the low order byte of PC0.
-	// *not implemented yet*
+        //                              As we are the only device which can trigger an interrupt, we will place our IRQ-vector on the bus
+        //                              The vector is stored in memory address $2800 + $2801
+	mov PC1,PC0
+        mov r1,MEMORY
+        ldr r0,=0x2800
+        ldrb r0,[r1,r0]
+        ldr r1,=0xff00
+        and PC0, r1
+        orr PC0, r0
+        write_data_bus r0,r1
+       // b romcloop                  falltrough intended
+
 romc10: 
 	//10000 	10 	L 	Inhibit any modification to the interrupt priority logic. 
+        //                              This is kind of "SEI" , but we can avoid this, by setting the vectors, before trigger the irq -line
         b romcloop
 
 romc11:
@@ -571,7 +589,17 @@ romc13:
 	//				data bus. All devices must move the contents of the data bus into the high order byte of PC0. The
 	//				interrupting device resets its interupt circuitry (so that it is no longer requesting CPU servicing and can
 	//				respond to another interrupt). 
-	// *not implemented yet*
+        //                              As we are the only device which can trigger an interrupt, we will place our IRQ-vector on the bus
+        //                              The vector is stored in memory address $2800 + $2801
+	mov PC1,PC0
+        mov r1,MEMORY
+        ldr r0,=0x2801
+        ldrb r0,[r1,r0]
+        ldr r1,=0x00ff
+        and PC0, r1
+        lsl r1,r0,#8
+        orr PC0, r1
+        write_data_bus r0,r1
         b romcloop
         
 
