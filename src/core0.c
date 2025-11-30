@@ -133,10 +133,11 @@ static void alarm_irq(void)
    hw_clear_bits(&timer_hw->intr, 1u << ALARM_NUM);
 
    // Trigger IRQ , if enabled
-   if ((memory[ICR_OFFSET] & IRQ_CTRL_MASK) == IRQ_CTRL_ENABLE_TIMER)
+   if (memory[ICR_OFFSET] & IRQ_CTRL_ENABLE_TIMER)
    {
       // set GPIO pin low to signal IRQ
-      gpio_put_masked(IRQ_OUT_MASK, IRQ_REQUESTED); // IRQ requested
+      gpio_clr_mask(IRQ_OUT_MASK); // IRQ requested
+      // printf("Timer IRQ triggered\n");
    }
    // Retrigger
    alarm_in_us(timer_val);
@@ -148,6 +149,8 @@ static void alarm_cancel(void)
    hw_clear_bits(&timer_hw->inte, 1u << ALARM_NUM);
    // Disable the alarm irq
    irq_set_enabled(ALARM_IRQ, false);
+   gpio_set_mask(IRQ_OUT_MASK); // IRQ requested
+
    timer_running = 0;
 }
 
@@ -159,17 +162,20 @@ void timer_control()
       timer_val = (memory[TIMER_VAL_LOW] + (memory[TIMER_VAL_MID] << 8) + (memory[TIMER_VAL_HI] << 16));
       if (timer_val > 0)
       {
+         printf("Starting timer for %d us\n", timer_val);
          alarm_in_us(timer_val);
       }
       else
       {
          // zero value means stop timer
+         printf("Timer value zero, not starting\n");
          alarm_cancel();
       }
    }
    if ((!(memory[ICR_OFFSET] & TIMER_START)) && (timer_running))
    {
       // stop timer
+      printf("Stopping timer\n");
       alarm_cancel();
    }
 }
@@ -182,11 +188,12 @@ void simulate_timer(int start)
       memory[TIMER_VAL_LOW] = 0x40;
       memory[TIMER_VAL_MID] = 0x42;
       memory[TIMER_VAL_HI] = 0x0f;
-      memory[ICR_OFFSET] |= TIMER_START;
+      memory[ICR_OFFSET] |= TIMER_START | IRQ_CTRL_ENABLE_TIMER;
    }
    else
    {
       memory[ICR_OFFSET] &= TIMER_STOP_MASK;
+      memory[ICR_OFFSET] &= IRQ_CTRL_MASK;
    }
 }
 #ifdef DEBUG_STATES
@@ -234,8 +241,9 @@ void print_help()
    printf("------------------------------\n\n");
    printf("2025 by Benson and Peiselulli\n");
    printf("          of TRSI\n\n");
-   printf(" h: hexedit for memdump\n");
+   printf(" h: hexedit for ROMdump\n");
    printf(" i: hexedit for IOdump\n");
+   printf(" k: hexedit for RAMdump\n");
    printf(" c: print clocksettings\n");
    printf(" u: upload rom-image via xmodem (max 8k)\n");
    printf(" f: fill mem with 0\n");
@@ -276,6 +284,10 @@ void console_rp2040()
       break;
    case 'i':
       hexedit(0x0);
+      clear();
+      break;
+   case 'k':
+      hexedit(0x2800);
       clear();
       break;
    case 'c':

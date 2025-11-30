@@ -121,15 +121,12 @@ static inline void bus_init()
    gpio_init_mask(DATABUS_MASK | ROMC_MASK | WRITE_MASK | PHI_MASK | IRQ_IN_MASK | IRQ_OUT_MASK | DB_DIR_MASK | DB_OE_MASK | TEST_PIN0_MASK | TEST_PIN1_MASK | TEST_PIN2_MASK);
    gpio_set_dir_in_masked(DATABUS_MASK | ROMC_MASK | WRITE_MASK | PHI_MASK | IRQ_IN_MASK);
 
-   gpio_put_masked(DB_DIR_MASK, DB_DIR_IN);    // Make sure DB is not output on main-bus
-   gpio_put_masked(DB_OE_MASK, DB_OE_ENABLED); // activate Output
-
-   gpio_put_masked(IRQ_OUT_MASK, IRQ_NOT_REQUESTED); // No IRQ requested
+   gpio_set_mask(IRQ_OUT_MASK); // No IRQ requested
+   gpio_clr_mask(DB_DIR_MASK);  // Make sure DB is not output on main-bus
+   gpio_clr_mask(DB_OE_MASK);   // activate Output
 
    gpio_set_dir_out_masked(DB_OE_MASK | DB_DIR_MASK | IRQ_OUT_MASK | TEST_PIN0_MASK | TEST_PIN1_MASK | TEST_PIN2_MASK);
-
-   gpio_clr_mask(DB_DIR_MASK); // Make sure DB is not output on main-bus
-   gpio_clr_mask(DB_OE_MASK);  // activate Output
+   // gpio_set_dir_out_masked(DB_OE_MASK | DB_DIR_MASK | TEST_PIN0_MASK | TEST_PIN1_MASK | TEST_PIN2_MASK);
 
    gpio_set_mask(TEST_PIN0_MASK); // activate Output
    gpio_set_mask(TEST_PIN1_MASK); // activate Output
