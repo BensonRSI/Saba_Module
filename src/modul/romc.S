@@ -10,7 +10,7 @@
         .global reset_triggered
 #ifdef DEBUG_STATES        
         .global debug_val
-        DUMP_VAL = 0x020
+        DUMP_VAL = 0x020  // TODO : This collides with the tracing of the PC, so only choose one
         DEBUG_PIN_0_SHIFT = 18  
         DEBUG_PIN_1_SHIFT = 19
         DEBUG_PIN_2_SHIFT = 20  
@@ -51,6 +51,7 @@
         PHI_SHIFT = 14
         //DB_DIR_SHIFT = DEBUG_PIN_2_SHIFT
         DB_DIR_SHIFT = 17
+        IRQ_OUT_SHIFT = 28   //This is used in core0 also, pay attention when changed
 
         
         //register used for special purposes
@@ -65,9 +66,7 @@
         PC1 .req r5		// PC1 reg
         DC0 .req r4		// DC0 reg
         DC1 .req r3		// DC1 reg
-#ifdef DEBUG_STATES
-        DEBUG_VAL .req sp
-#endif
+        IO_ADDR .req sp         // holds the address of the selected io-port
 
 	// check if memory given in "check_reg" is in range
 	// param : check_reg : register to check
@@ -86,6 +85,16 @@
         .macro check_map2 check_reg, scratch
         mov \scratch,#1
         orr \scratch,\scratch
+        .endm
+
+        // This checks if the addressed IO-port is ours . We have 0x08 - 0x0f
+        .macro check_io check_reg, scratch
+        mov \scratch,\check_reg
+        and \scratch,#0x08     
+        beq 1f
+        and IO_ADDR,\check_reg,#0x07        
+
+1:
         .endm
 
 	// wait for falling edge macro
@@ -114,6 +123,13 @@
         mov \reg0,#1
         lsl \reg0,#DB_DIR_SHIFT
         str \reg0,[SIO_REG, #GPIO_CLR]
+        .endm
+
+        .macro disable_irq reg0
+        // disable irq line, when irq is aknowledged
+        mov \reg0,#1
+        lsl \reg0,#IRQ_OUT_SHIFT
+        str \reg0,[SIO_REG, #GPIO_SET]
         .endm
 
         .macro read_romc reg0,reg1
@@ -240,23 +256,28 @@
         and \reg0,\reg1
        .endm 
 
-       .macro trace_pc
 #ifdef DEBUG_STATES
-        mov r1,DEBUG_VAL
+       .macro init_debug_pointer reg0,reg1
+
+        ldr \reg0,=debug_val  // First entry in the debug-mem holds the pointer
+        add \reg1,\reg0,#4
+        str \reg1,[\reg0]
+
+       .endm
+
+       .macro trace_pc
+
         ldr r0,=debug_val
-        str r1,[r0]
-        //add r1,#DUMP_VAL
-        //add r1,#33
-        str PC0,[r1]
+        ldr r0,[r0]
+        //str r1,[r0]
+        str PC0,[r0]
         //str PC1,[r1,#4]
         //str DC0,[r1,#8]
-        add r1,#4
-        mov DEBUG_VAL,r1
-        ldr r0,=debug_val+17000
-        cmp r1,r0
+        add r0,#4  // #8,#12
+        ldr r1,=debug_val+17000
+        cmp r0,r1
         blo 0f
-        ldr r0,=debug_val
-        mov DEBUG_VAL,r0
+        init_debug_pointer r0,r1
 0:        
            
 /*  Check for underrunning PC
@@ -268,6 +289,7 @@
         ldr PC0,=0x0000        
 1:
 */
+
 #endif  
         .endm               
 
@@ -296,9 +318,7 @@ romc:
         #endif
  #ifdef DEBUG_STATES  
         clr_debug_pin DEBUG_PIN_1_SHIFT,r1
-        ldr r1,=debug_val
-        add r1,#4
-        mov DEBUG_VAL,r1
+        init_debug_pointer r0,r1
  #endif       
         b   romcloop
 
@@ -600,6 +620,7 @@ romc13:
         lsl r1,r0,#8
         orr PC0, r1
         write_data_bus r0,r1
+        disable_irq r0
         b romcloop
         
 
@@ -676,16 +697,26 @@ romc19:
         ldr r1,=0xff00
         and DC0,r1
         orr DC0,DATA
+        b romcloop
 romc1a:
 	//11010 	1A 	L 	During the prior cycle, an I/O port timer or interrupt control register was addressed; the device
 	//containing the addressed port must move the current contents of the data bus into the addressed port. 
-	// *not implemented yet*
+	ldr r0,=memory          // First 8 addresses of memory, holds the IO-register
+        add r0,IO_ADDR
+        ldrb r0,[r0]
+        write_data_bus r0,r1
+        b romcloop
 romc1b:
 	//11011 	1B 	L 	During the prior cycle, the data bus specified the address of an I/O port. The device containing the
-	//				addressed I/O port must place the contents of the I/O port on the data bus. (Note that the contents of
-	//				timer and interrupt control registers cannot be read back onto the data bus.) 
+	//				addressed I/O port must place the contents of the I/O port on the data bus. 
+	ldr r0,=memory          // First 8 addresses of memory, holds the IO-register
+        add r0,IO_ADDR
+        strb DATA,[r0]
+        b romcloop
+
 romc1c:
 	//11100 	1C 	L or S 	None. 
+        check_io r0,r1          
         b romcloop
 
 romc1d:

@@ -24,6 +24,25 @@
 #include "xmodem.h"
 
 extern uint8_t memory[0x10000];
+// the first 8 bytes of the memory are used as IO-Ports
+// The adresses asre used for timer and IRQ-control
+// bit0-3 : IRQ control: 00=disable, 01=enable timer IRQ, others reserved
+// bit4: timer start/stop
+#define ICR_OFFSET 0
+#define IRQ_CTRL_DISABLE 0
+#define IRQ_CTRL_MASK 0xfc // for further use ,bit 1
+#define IRQ_CTRL_ENABLE_TIMER 1
+#define TIMER_STOP_MASK 0xef
+#define TIMER_START 0x10
+
+// this defines a 24-bit timer val, running at 1 Mhz
+// gives max delay of 16.777216 seconds
+// a value of 0 means timer stopped
+
+#define TIMER_VAL_LOW 0x1
+#define TIMER_VAL_MID 0x2
+#define TIMER_VAL_HI 0x3
+
 extern volatile uint8_t reset_triggered;
 uint8_t upload_memory[0x2000]; /* Maximum size we can use = 8k*/
 #ifdef DEBUG_STATES
@@ -78,6 +97,98 @@ void fill_ram(uint8_t val)
 
    memset(memory, val, sizeof(memory));
 }
+
+// Use alarm 0
+#define ALARM_NUM 0
+#define ALARM_IRQ TIMER_IRQ_0
+
+static void alarm_irq(void);
+int timer_running = 0;
+int timer_val = 0;
+
+static void alarm_in_us(uint32_t delay_us)
+{
+   // Enable the interrupt for our alarm (the timer outputs 4 alarm irqs)
+   hw_set_bits(&timer_hw->inte, 1u << ALARM_NUM);
+   // Set irq handler for alarm irq
+   irq_set_exclusive_handler(ALARM_IRQ, alarm_irq);
+   // Enable the alarm irq
+   irq_set_enabled(ALARM_IRQ, true);
+   // Enable interrupt in block and at processor
+
+   // Alarm is only 32 bits so if trying to delay more
+   // than that need to be careful and keep track of the upper
+   // bits
+   uint64_t target = timer_hw->timerawl + delay_us;
+
+   // Write the lower 32 bits of the target time to the alarm which
+   // will arm it
+   timer_hw->alarm[ALARM_NUM] = (uint32_t)target;
+   timer_running = 1;
+}
+
+static void alarm_irq(void)
+{
+   // Clear the alarm irq
+   hw_clear_bits(&timer_hw->intr, 1u << ALARM_NUM);
+
+   // Trigger IRQ , if enabled
+   if ((memory[ICR_OFFSET] & IRQ_CTRL_MASK) == IRQ_CTRL_ENABLE_TIMER)
+   {
+      // set GPIO pin low to signal IRQ
+      gpio_put_masked(IRQ_OUT_MASK, IRQ_REQUESTED); // IRQ requested
+   }
+   // Retrigger
+   alarm_in_us(timer_val);
+}
+
+static void alarm_cancel(void)
+{
+   // Disable the interrupt for our alarm (the timer outputs 4 alarm irqs)
+   hw_clear_bits(&timer_hw->inte, 1u << ALARM_NUM);
+   // Disable the alarm irq
+   irq_set_enabled(ALARM_IRQ, false);
+   timer_running = 0;
+}
+
+void timer_control()
+{
+   if (((memory[ICR_OFFSET] & TIMER_START)) && (!timer_running))
+   {
+      // timer not running, so start it
+      timer_val = (memory[TIMER_VAL_LOW] + (memory[TIMER_VAL_MID] << 8) + (memory[TIMER_VAL_HI] << 16));
+      if (timer_val > 0)
+      {
+         alarm_in_us(timer_val);
+      }
+      else
+      {
+         // zero value means stop timer
+         alarm_cancel();
+      }
+   }
+   if ((!(memory[ICR_OFFSET] & TIMER_START)) && (timer_running))
+   {
+      // stop timer
+      alarm_cancel();
+   }
+}
+
+void simulate_timer(int start)
+{
+   if (start)
+   {
+      // set timer value to 1 sec
+      memory[TIMER_VAL_LOW] = 0x40;
+      memory[TIMER_VAL_MID] = 0x42;
+      memory[TIMER_VAL_HI] = 0x0f;
+      memory[ICR_OFFSET] |= TIMER_START;
+   }
+   else
+   {
+      memory[ICR_OFFSET] &= TIMER_STOP_MASK;
+   }
+}
 #ifdef DEBUG_STATES
 void get_tracedump(int offset, int length)
 {
@@ -124,9 +235,11 @@ void print_help()
    printf("2025 by Benson and Peiselulli\n");
    printf("          of TRSI\n\n");
    printf(" h: hexedit for memdump\n");
+   printf(" i: hexedit for IOdump\n");
    printf(" c: print clocksettings\n");
    printf(" u: upload rom-image via xmodem (max 8k)\n");
    printf(" f: fill mem with 0\n");
+   printf(" r: run/stop 1-sec timer \n");
 #ifdef DEBUG_STATES
    printf(" p: trace current PC0\n");
    printf(" j: trace current PC0, on highbyte change\n");
@@ -139,6 +252,7 @@ void print_help()
 }
 
 int doe_val = 1;
+int timer_simulate = 0;
 void console_rp2040()
 {
    char *in;
@@ -160,12 +274,21 @@ void console_rp2040()
       hexedit(0x800);
       clear();
       break;
+   case 'i':
+      hexedit(0x0);
+      clear();
+      break;
    case 'c':
       debug_clocks();
       break;
    case 'f':
       printf("Clear Ram\n");
       fill_ram(0);
+      break;
+   case 'r':
+      timer_simulate = 1 - timer_simulate;
+      printf("Timer %s\n", timer_simulate ? "started" : "stopped");
+      simulate_timer(timer_simulate);
       break;
    case 'u':
       printf("Upload ROM start xmodem transfer now \n");
@@ -281,6 +404,7 @@ void console_run()
          printf("PC: 0x%04x\n", debug_val[0] + (debug_val[1] * 0x100));
       }
 #endif
+      timer_control();
       tight_loop_contents();
    }
 }

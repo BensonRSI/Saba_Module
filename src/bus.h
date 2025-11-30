@@ -47,4 +47,7 @@
 #define DB_DIR_IN 1
 #define DB_DIR_OUT 0
 
+#define IRQ_REQUESTED 0
+#define IRQ_NOT_REQUESTED 1
+
 void bus_run();
