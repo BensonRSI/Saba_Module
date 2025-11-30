@@ -87,16 +87,22 @@
         orr \scratch,\scratch
         .endm
 
-        // This checks if the addressed IO-port is ours . We have 0x08 - 0x0f
-        .macro check_io check_reg, scratch
+        // This checks if the addressed IO-port is ours and stores the address . We have 0x08 - 0x0f
+        .macro store_io check_reg, scratch
         mov \scratch,\check_reg
-        asr \scratch,#0x03   // and #$08
-        beq 1f
+        asr \scratch,#0x04   // and #$08        
+        bcc 1f
         mov \scratch,#0x07
         and \check_reg,\scratch
         mov IO_ADDR,\check_reg
 
 1:
+        .endm
+
+        // This checks if the addressed IO-port is ours . We have 0x08 - 0x0f
+        .macro check_io check_reg, scratch
+        mov \scratch,IO_ADDR
+        asr \scratch,#0x04   // and #$08
         .endm
 
 	// wait for falling edge macro
@@ -703,22 +709,29 @@ romc19:
 romc1a:
 	//11010 	1A 	L 	During the prior cycle, an I/O port timer or interrupt control register was addressed; the device
 	//containing the addressed port must move the current contents of the data bus into the addressed port. 
+        check_io r0,r1
+        bcc romc1a_cont
 	ldr r0,=memory          // First 8 addresses of memory, holds the IO-register
         add r0,IO_ADDR
         ldrb r0,[r0]
         write_data_bus r0,r1
+romc1a_cont:
+
         b romcloop
 romc1b:
 	//11011 	1B 	L 	During the prior cycle, the data bus specified the address of an I/O port. The device containing the
 	//				addressed I/O port must place the contents of the I/O port on the data bus. 
+        check_io r0,r1
+        bcc romc1c_cont
 	ldr r0,=memory          // First 8 addresses of memory, holds the IO-register
         add r0,IO_ADDR
         strb DATA,[r0]
+romc1c_cont:        
         b romcloop
 
 romc1c:
 	//11100 	1C 	L or S 	None. 
-        check_io r0,r1          
+        store_io r0,r1          
         b romcloop
 
 romc1d:
