@@ -90,9 +90,11 @@
         // This checks if the addressed IO-port is ours . We have 0x08 - 0x0f
         .macro check_io check_reg, scratch
         mov \scratch,\check_reg
-        and \scratch,#0x08     
+        asr \scratch,#0x03   // and #$08
         beq 1f
-        and IO_ADDR,\check_reg,#0x07        
+        mov \scratch,#0x07
+        and \check_reg,\scratch
+        mov IO_ADDR,\check_reg
 
 1:
         .endm
@@ -290,8 +292,8 @@
 1:
 */
 
-#endif  
         .endm               
+#endif  
 
 .global romc
 romc:
