@@ -1,0 +1,9 @@
+all:	convert
+
+convert:	convert.c
+	gcc -g `sdl-config --cflags` -o convert convert.c  `sdl-config --libs` -lSDL -lSDL_image
+
+win:		convert_win.exe
+convert_win.exe:	convert.c
+	i586-mingw32msvc-gcc -g `/opt/win32/SDL-1.2.15/bin/sdl-config --cflags` -o convert_win.exe convert.c  `/opt/win32/SDL-1.2.15/bin/sdl-config --libs` -lSDL -lSDL_image
+
