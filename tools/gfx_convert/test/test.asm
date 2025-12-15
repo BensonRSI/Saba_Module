@@ -3,75 +3,109 @@
 
         .byte $55,$aa
 
-        li $00
-        lr 7,a
-        lr 8,a
+        dci picture
 
-big_loop:
-        clr
+        lm
+        lr 4,a
+        lm
+        lr 5,a
+        
+        li 4        ;start y coordinate
         lr 3,a
-palette_loop:
-        lr a,7
+big_loop:
+        ;set the palette
         lr 1,a
         li 125
         lr 2,a
+        lm
+        lr 1,a
         pi plot
-        
-        li 126
-        lr 2,a
-
-        lr a,7
+        lr a,1
         sl 1
         sl 1
         lr 1,a
+        li 126
+        lr 2,a
         pi plot
         
+        ;send the data
+        lr a,4
+        lr 6,a
+        
+        li 5        ;start x coordinate
+        lr 2,a
+little_loop:
+        lm
+        lr 1,a
+
+        pi plot
+
+        lr a,2
+        ai 1
+        lr 2,a
+        lr a,6
+        ai $ff
+        lr 6,a
+        bz little_loop_end
+        
+        lr a,1
+        sl 1
+        sl 1
+        lr 1,a
+
+        pi plot
+
+        lr a,2
+        ai 1
+        lr 2,a
+        lr a,6
+        ai $ff
+        lr 6,a
+        bz little_loop_end
+        
+        lr a,1
+        sl 1
+        sl 1
+        lr 1,a
+
+        pi plot
+
+        lr a,2
+        ai 1
+        lr 2,a
+        lr a,6
+        ai $ff
+        lr 6,a
+        bz little_loop_end
+        
+        lr a,1
+        sl 1
+        sl 1
+        lr 1,a
+
+        pi plot
+
+        lr a,2
+        ai 1
+        lr 2,a
+        lr a,6
+        ai $ff
+        lr 6,a
+        bnz little_loop
+little_loop_end:
         lr a,3
         ai 1
         lr 3,a
-        ci $40
-        bnz palette_loop
-
-
-        li 4
-        lr 2,a
-        clr
-        lr 3,a
-        lr a,7
-        lr 1,a
-loop:
-        lr a,1
-        ai $05
-        lr 1,a
-        pi plot
-        lr a,2
-        ai $01
-        ci 106
-        bnz l1
-        clr
-        lr 1,a
-
-        lr a,3
-        ai $01
-        ci $40
-        bnz l2
-        jmp end_loop
-l2:     lr 3,a
-
-        li 4
-l1:     lr 2,a
-        jmp loop
-
-end_loop:
-        lr  a,7
-        ai  $20
-        lr  7,a
-        ni  $40
+        
+        lr a,5
+        ai $ff
+        lr 5,a
         bnz big_loop
-        lr  a,7
-        ai $40
-        lr  7,a        
-        jmp big_loop
+        
+        
+endless:    
+        jmp endless
+
 
 
 
@@ -125,3 +159,5 @@ plot.delay:
 
 	pop							; return from the subroutine
 
+picture:
+        .include "pic.asm"

@@ -59,16 +59,30 @@ static Boxes *clashes = NULL;
 #define INDEX_FOREGROUND_START  4
 
 static unsigned char palette_data[9][3] = {
-	{0xe0,  0xe0,  0xe0},   // background = %11 lightgrey
+	{0xe0,  0xe0,  0xe0},   // background = %11 light grey
 	{0x10,  0x10,  0x10},   // background = %11 black
 	{0x91,  0xff,  0xa6},   // background = %11 light green
 	{0xce,  0xd0,  0xff},   // background = %11 light blue
 
 	{0xfc,  0xfc,  0xfc},   // forground = %00, %01 or %10 white
-	{0xff,  0x31,  0x53},   // forground = %00  red
 	{0x02,  0xcc,  0x5d},   // forground = %01  green
+	{0xff,  0x31,  0x53},   // forground = %00  red
 	{0x4b,  0x3f,  0xf3},   // forground = %10  blue
 	{255,  0,255}
+};
+
+static uint8_t palette_for_picture[4] = {
+    0x80,               // lightgrey
+    0x90,               // black
+    0x00,               // light green
+    0x10                // light blue
+};
+
+static const char *text_for_palette[4] = {
+    "light grey",
+    "black",
+    "light green",
+    "light blue"
 };
 
 static double y_u_v[9][3];
@@ -376,10 +390,11 @@ static int convert(const char *filename, int asm_mode)
         int background = find_background_color(j);
         if (asm_mode)
         {
-            fprintf(f," .byte $%02x ; palette for line %d, data following :\n .byte ", background, j);
+            fprintf(f," .byte $%02x ;  \"%s\" palette for line %d , data following :\n .byte ",
+                palette_for_picture[background], text_for_palette[background], j);
         }
         else {
-            *data++ = background;
+            *data++ = palette_for_picture[background];
         }
         int shift = 6;
         int dat = 0;
@@ -442,7 +457,7 @@ static int convert(const char *filename, int asm_mode)
         }
         if (error_found >= 0)
         {
-            gprintf("coloclash in line %d, starting at xpos %d", j, error_found); 
+            gprintf("colorclash in line %d, starting at xpos %d", j, error_found); 
         }
         //printf("\n");
     }
