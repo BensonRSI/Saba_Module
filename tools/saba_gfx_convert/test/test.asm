@@ -3,8 +3,18 @@
 
         .byte $55,$aa
 
+endless:    
+        dci logo
+        pi paint_picture
         dci picture
+        pi paint_picture
+        dci picture2
+        pi paint_picture
+        jmp endless
 
+
+paint_picture:
+        lr k,pc1
         lm
         lr 4,a
         lm
@@ -101,12 +111,8 @@ little_loop_end:
         ai $ff
         lr 5,a
         bnz big_loop
-        
-        
-endless:    
-        jmp endless
-
-
+        lr pc1,k
+        pop
 
 
 ;---------------;
@@ -159,5 +165,11 @@ plot.delay:
 
 	pop							; return from the subroutine
 
+logo:
+        .include "logo.asm"
+
 picture:
         .include "pic.asm"
+
+picture2:
+        .include "pic2.asm"

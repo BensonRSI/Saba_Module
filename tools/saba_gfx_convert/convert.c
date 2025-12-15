@@ -73,7 +73,7 @@ static unsigned char palette_data[9][3] = {
 
 static uint8_t palette_for_picture[4] = {
     0x80,               // lightgrey
-    0x90,               // black
+    0xf0,               // black
     0x00,               // light green
     0x10                // light blue
 };
