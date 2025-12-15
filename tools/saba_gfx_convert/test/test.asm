@@ -42,7 +42,7 @@ big_loop:
         lr a,4
         lr 6,a
         
-        li 5        ;start x coordinate
+        li 4        ;start x coordinate
         lr 2,a
 little_loop:
         lm
