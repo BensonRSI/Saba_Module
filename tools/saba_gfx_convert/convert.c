@@ -536,6 +536,10 @@ static void paint_clashes(void)
 	cl = clashes;
 	while(cl) {
             set_pixel_rgb(mainscreen, cl->x*ZOOM_SIZE, cl->y*ZOOM_SIZE, 0xff,0x00,0xff);
+#ifdef ZOOM
+            set_pixel_rgb(mainscreen, cl->x*ZOOM_SIZE+1, cl->y*ZOOM_SIZE+1, 0x00,0x00,0x00);
+#endif
+
 #if 0
 		for(y=0; y < YCS; ++y) {
 			for(x=0; x < 8; ++x) {
