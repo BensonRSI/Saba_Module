@@ -369,6 +369,14 @@ int calc_data_size()
 
 static int convert(const char *filename, int asm_mode)
 {
+    if (filename)
+    {
+        gprintf("%d x %d converting to %s", width, height, filename);
+    }
+    else
+    {
+        gprintf("size %d x %d ", width, height);
+    }
     FILE *f = NULL;
     uint8_t *array = NULL, *data = NULL;
     if (asm_mode)
