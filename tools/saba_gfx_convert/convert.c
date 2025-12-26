@@ -9,12 +9,12 @@
 
 #include "c64chars.h"
 
-#define Y_SIZE 2
+#define Y_SIZE 4
 
 #define ZOOM
 
 #ifdef ZOOM
-    #define ZOOM_SIZE 2
+    #define ZOOM_SIZE 4
 #else
     #define ZOOM_SIZE 1
 #endif
@@ -160,12 +160,15 @@ static void set_pixel_rgb(SDL_Surface *pic, int x, int y, unsigned char r, unsig
 	*pointer = data;
 }
 
-static void set_pixel_rgb_2x2(SDL_Surface *pic, int x, int y, unsigned char r, unsigned char g, unsigned char b)
+static void set_pixel_rgb_4x4(SDL_Surface *pic, int x, int y, unsigned char r, unsigned char g, unsigned char b)
 {
-	set_pixel_rgb(pic, x*2, y*2, r,g,b);
-	set_pixel_rgb(pic, x*2+1, y*2, r,g,b);
-	set_pixel_rgb(pic, x*2, y*2+1, r,g,b);
-	set_pixel_rgb(pic, x*2+1, y*2+1, r,g,b);
+        for(int i=0; i < 4; ++i)
+        {
+            for(int j=0; j < 4; ++j)
+            {
+	        set_pixel_rgb(pic, x*4+i, y*4+j, r,g,b);
+            }
+        }    
 }
 
 static void print_char(SDL_Surface *pic, unsigned char ch)
@@ -179,10 +182,10 @@ static void print_char(SDL_Surface *pic, unsigned char ch)
 		for(i=0; i < 8; ++i) {
 			if (c & 0x80) {
 				set_pixel_rgb(pic, x_pos_to_print+i,
-					y_pos_to_print+j*Y_SIZE, 0xff, 0xff, 0xff);
+					y_pos_to_print+j*2, 0xff, 0xff, 0xff);
 			#if Y_SIZE > 1
 				set_pixel_rgb(pic, x_pos_to_print+i,
-					y_pos_to_print+j*Y_SIZE+1, 0xff, 0xff, 0xff);
+					y_pos_to_print+j*2+1, 0xff, 0xff, 0xff);
 			#endif
 			}
 			c <<=1;
@@ -215,7 +218,7 @@ static void gprintf(const char *format, ...)
 		print_char(mainscreen, c); 
 	}
 	x_pos_to_print = 8;
-	y_pos_to_print += 8*Y_SIZE;
+	y_pos_to_print += 8*2;
 }
 
 static int get_index(unsigned char r, unsigned char g, unsigned char b)
@@ -546,6 +549,11 @@ static void paint_clashes(void)
             set_pixel_rgb(mainscreen, cl->x*ZOOM_SIZE, cl->y*ZOOM_SIZE, 0xff,0x00,0xff);
 #ifdef ZOOM
             set_pixel_rgb(mainscreen, cl->x*ZOOM_SIZE+1, cl->y*ZOOM_SIZE+1, 0x00,0x00,0x00);
+            set_pixel_rgb(mainscreen, cl->x*ZOOM_SIZE+1, cl->y*ZOOM_SIZE+3, 0x00,0x00,0x00);
+            set_pixel_rgb(mainscreen, cl->x*ZOOM_SIZE+2, cl->y*ZOOM_SIZE+2, 0x00,0x00,0x00);
+            set_pixel_rgb(mainscreen, cl->x*ZOOM_SIZE+2, cl->y*ZOOM_SIZE+4, 0x00,0x00,0x00);
+            set_pixel_rgb(mainscreen, cl->x*ZOOM_SIZE+3, cl->y*ZOOM_SIZE+3, 0x00,0x00,0x00);
+            set_pixel_rgb(mainscreen, cl->x*ZOOM_SIZE+3, cl->y*ZOOM_SIZE+4, 0x00,0x00,0x00);
 #endif
 
 #if 0
@@ -592,11 +600,11 @@ static void paintscreen(void)
 			index = get_pixel(x, y, &r_orig, &g_orig, &b_orig);
 			//printf("%01x", index);
 #ifdef ZOOM
-			set_pixel_rgb_2x2(mainscreen, x, y, 
+			set_pixel_rgb_4x4(mainscreen, x, y, 
 				palette_data[index][0],
 				palette_data[index][1],
 				palette_data[index][2]); 
-			set_pixel_rgb_2x2(mainscreen, x+width, y, 
+			set_pixel_rgb_4x4(mainscreen, x+width, y, 
 				r_orig,
 				g_orig,
 				b_orig); 
