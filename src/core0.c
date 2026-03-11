@@ -22,13 +22,14 @@
 #include "bus.h"
 #include "demo.h" // default demo data
 #include "xmodem.h"
+#include "flash_store.h"
 
 extern uint8_t memory[0x10000];
 // the first 8 bytes of the memory are used as IO-Ports
 // The adresses asre used for timer and IRQ-control
 // bit0-3 : IRQ control: 00=disable, 01=enable timer IRQ, others reserved
 // bit4: timer start/stop
-#define ICR_OFFSET 0
+#define ICR_OFFSET 8
 #define IRQ_CTRL_DISABLE 0
 #define IRQ_CTRL_MASK 0xfc // for further use ,bit 1
 #define IRQ_CTRL_ENABLE_TIMER 1
@@ -39,12 +40,12 @@ extern uint8_t memory[0x10000];
 // gives max delay of 16.777216 seconds
 // a value of 0 means timer stopped
 
-#define TIMER_VAL_LOW 0x1
-#define TIMER_VAL_MID 0x2
-#define TIMER_VAL_HI 0x3
+#define TIMER_VAL_LOW 0x9
+#define TIMER_VAL_MID 0xa
+#define TIMER_VAL_HI 0xb
 
 extern volatile uint8_t reset_triggered;
-uint8_t upload_memory[0x2000]; /* Maximum size we can use = 8k*/
+uint8_t upload_memory[0x10000 - 0x800]; /* Maximum size we can use = 62k*/
 #ifdef DEBUG_STATES
 extern volatile uint8_t debug_val[18000];
 int trace_dump = 0;
@@ -137,7 +138,7 @@ static void alarm_irq(void)
    {
       // set GPIO pin low to signal IRQ
       gpio_clr_mask(IRQ_OUT_MASK); // IRQ requested
-      // printf("Timer IRQ triggered\n");
+      printf("Timer IRQ triggered\n");
    }
    // Retrigger
    alarm_in_us(timer_val);
@@ -242,10 +243,11 @@ void print_help()
    printf("2025 by Benson and Peiselulli\n");
    printf("          of TRSI\n\n");
    printf(" h: hexedit for ROMdump\n");
-   printf(" i: hexedit for IOdump\n");
    printf(" k: hexedit for RAMdump\n");
    printf(" c: print clocksettings\n");
-   printf(" u: upload rom-image via xmodem (max 8k)\n");
+   printf(" u: upload rom-image via xmodem to ram(max 8k)\n");
+   printf(" w: write rom-image via xmodem to flash(max 8k)\n");
+   printf(" i: inventory of stored ROMs\n");
    printf(" f: fill mem with 0\n");
    printf(" r: run/stop 1-sec timer \n");
 #ifdef DEBUG_STATES
@@ -259,12 +261,32 @@ void print_help()
 #endif
 }
 
+void print_cart_dir()
+{
+
+   printf("----------------------------------------------\n");
+   printf("SlotNo\t| Size \t\t| Name\n");
+   for (int i = 0; i < MAX_CART_NO; i++)
+   {
+      if (is_cart_data_valid(i))
+      {
+         printf("    %d\t| ", i);
+         dir_entry *cart_dir_entry = get_cart_dir_entry(i);
+         printf("%06d\t| %s", cart_dir_entry->size, cart_dir_entry->cart_name);
+         printf("\n");
+      }
+   }
+   printf("---------------------------------------------\n\n");
+}
+
 int doe_val = 1;
 int timer_simulate = 0;
 void console_rp2040()
 {
    char *in;
    bool leave = false;
+   int ret;
+   int cart_size;
 
    int c = getchar_timeout_us(0);
    if (c == PICO_ERROR_TIMEOUT)
@@ -280,10 +302,6 @@ void console_rp2040()
       break;
    case 'h':
       hexedit(0x800);
-      clear();
-      break;
-   case 'i':
-      hexedit(0x0);
       clear();
       break;
    case 'k':
@@ -304,8 +322,47 @@ void console_rp2040()
       break;
    case 'u':
       printf("Upload ROM start xmodem transfer now \n");
-      int ret = xmodemReceive(upload_memory, sizeof(upload_memory));
+      ret = xmodemReceive(upload_memory, sizeof(upload_memory));
       printf("Upload complete, %d bytes received\n", ret);
+      break;
+   case 'w':
+      printf("Enter ROM-Slot for writing (00-99): \n");
+      fflush(stdout);
+      sleep_ms(500); // give some time for the prompt to be sent before waiting for input
+      in = getaline();
+      int slot = strtol(in, NULL, 10);
+      if ((slot < 0) || (slot > 99))
+      {
+         printf("Invalid slot number\n");
+         break;
+      }
+      printf("Enter the name of the ROM (max 20 chars): \n");
+      fflush(stdout);
+      sleep_ms(500); // give some time for the prompt to be sent before waiting for input
+      in = getaline();
+      if (strlen(in) > 20)
+      {
+         printf("ROM name too long, max 20 chars\n");
+         break;
+      }
+      printf("Write ROM start xmodem transfer now \n");
+      cart_size = xmodemReceive(upload_memory, sizeof(upload_memory));
+      if (cart_size <= 0)
+      {
+         printf("Xmodem transfer failed\n");
+         break;
+      }
+
+      sleep_ms(500); // give some time for the prompt to be sent before waiting for input
+      printf("\n\nUpload complete, %d bytes received\n", cart_size);
+      ret = write_cart_data(upload_memory, cart_size, slot);
+      printf("Data written, crc 0x%04x \n", ret);
+      ret = validate_cart_data(slot, in, cart_size, 0, false);
+      printf("Data validated, %d result\n", ret);
+      printf("ROM-Slot %02d written\n", slot);
+      break;
+   case 'i':
+      print_cart_dir();
       break;
 #ifdef DEBUG_STATES
    case 'x':
@@ -386,7 +443,7 @@ void welcome()
 }
 void console_run()
 {
-   multicore_lockout_victim_init();
+
    // init mcurses
    setFunction_putchar((void (*)(uint8_t))putchar); // putchar_raw
    setFunction_getchar((char (*)(void))getchar);    // putchar_raw
@@ -397,8 +454,11 @@ void console_run()
    memset((void *)debug_val, 0, 18000);
 #endif
    welcome();
+   init_flash_store();
+   // readConfiguration();
    debug_clocks();
    getaline_init();
+   print_help();
    memset(upload_memory, 0x00, sizeof(upload_memory));
    memcpy(upload_memory, demo_data, sizeof(demo_data));
    for (;;)
@@ -406,7 +466,9 @@ void console_run()
       console_rp2040();
       if (reset_triggered)
       {
-         memcpy(&memory[0x800], upload_memory, sizeof(upload_memory));
+         memcpy(&memory[0x0800], upload_memory, sizeof(upload_memory));
+         // memset(&memory[0x2800], 0x00, 0x400); // clear RAM to 0x00 // this
+         memset(&memory[0x0000], 0x00, 0x20); // clear IO-bank to 0x00
          reset_triggered = 0;
          printf("System Reset performed\n");
       }

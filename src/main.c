@@ -21,6 +21,7 @@
 
 #include "bus.h"
 #include "common.h"
+#include "flash_store.h"
 
 int main()
 {
@@ -33,10 +34,10 @@ int main()
    sleep_ms(2000);
 #endif
 
-#if 1
+#if 0
    vreg_set_voltage(VREG_VOLTAGE_1_30);
    sleep_ms(1);
-   if (!set_sys_clock_khz(360000, false))
+   if (!(SET_CLOCK_FAST))
    { // 428000 is known to work on some devices
       // blink_code(BLINK::OVERCLOCK_FAILED);
       //     //panic("Overclock was unsuccessful");
