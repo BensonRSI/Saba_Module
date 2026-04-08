@@ -162,9 +162,10 @@ static void set_pixel_rgb(SDL_Surface *pic, int x, int y, unsigned char r, unsig
 
 static void set_pixel_rgb_4x4(SDL_Surface *pic, int x, int y, unsigned char r, unsigned char g, unsigned char b)
 {
-        for(int i=0; i < 4; ++i)
+        int i,j;
+        for(i=0; i < 4; ++i)
         {
-            for(int j=0; j < 4; ++j)
+            for(j=0; j < 4; ++j)
             {
 	        set_pixel_rgb(pic, x*4+i, y*4+j, r,g,b);
             }
@@ -305,7 +306,8 @@ static int get_pixel(int x, int y, int *r_ret, int *g_ret, int *b_ret)
 
 static int find_background_color(int y)
 {
-    for(int i=0; i < width; ++i)
+    int i;
+    for(i=0; i < width; ++i)
     {
         int index = get_pixel(i, y, NULL, NULL, NULL);
         if (index == INDEX_FOREGROUND_WHITE)
@@ -394,7 +396,8 @@ static int convert(const char *filename, int asm_mode)
         *data++ = width;
         *data++ = height;
     }
-    for(int j=0; j < height; ++j)
+    int j;
+    for(j=0; j < height; ++j)
     {
         int first_byte = 0;
         int error_found = -1;
@@ -409,7 +412,8 @@ static int convert(const char *filename, int asm_mode)
         }
         int shift = 6;
         int dat = 0;
-        for(int i=0; i < width; ++i)
+        int i;
+        for(i=0; i < width; ++i)
         {
             int c = get_bitmask(background, i, j);
             if (c < 0)
