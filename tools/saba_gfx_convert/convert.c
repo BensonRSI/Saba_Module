@@ -72,10 +72,10 @@ static unsigned char palette_data[9][3] = {
 };
 
 static uint8_t palette_for_picture[4] = {
-    0x80,               // lightgrey
-    0xf0,               // black
+    0x40,               // lightgrey
+    0xc0,               // black
     0x00,               // light green
-    0x10                // light blue
+    0x80                // light blue
 };
 
 static const char *text_for_palette[4] = {
@@ -320,7 +320,7 @@ static int find_background_color(int y)
             return index;
         }
     }
-    return -1;
+    return 0; /* default to light grey if no background pixel found */
 }
 
 static int color_bits(int background_index, int color_index)
@@ -372,7 +372,7 @@ int calc_data_size()
     return 2 /* for x and y */ + line_bytes*height;    
 }
 
-static int convert(const char *filename, int asm_mode)
+static int convert(const char *filename, int asm_mode, int blt_format)
 {
     if (filename)
     {
@@ -386,30 +386,50 @@ static int convert(const char *filename, int asm_mode)
     uint8_t *array = NULL, *data = NULL;
     if (asm_mode)
     {
-        f = fopen(filename, "w");
-        fprintf(f,"        .byte $%02x, $%02x ; x size (%d) and y size (%d)\n", width, height, width, height);
+		f = fopen(filename, "w");
+
+		if (!blt_format){        
+        	fprintf(f,"        .byte $%02x, $%02x ; x size (%d) and y size (%d)\n", width, height, width, height);
+		}
+		else
+		{
+			fprintf(f,"gfx.bmp.parameters:\n");
+			fprintf(f,"\t.byte	0 ; x position\n");
+			fprintf(f,"\t.byte	0 ; y position\n");
+			fprintf(f,"\t.byte	102 ; width\n");
+			fprintf(f,"\t.byte	58 ; height\n");
+			fprintf(f,"\t.word	gfx.multicolor.data ; address for the graphic\n\n");
+
+			fprintf(f,"gfx.pal1.parameters:\n");
+			fprintf(f,"\t.byte	$FF			; color 1 (ON)\n");
+			fprintf(f,"\t.byte	$00			; color 2 (OFF)\n");
+			fprintf(f,"\t.byte	121			; x position\n");
+			fprintf(f,"\t.byte	0			; y position\n");
+			fprintf(f,"\t.byte	2			; width\n");
+			fprintf(f,"\t.byte	58			; height\n");
+			fprintf(f,"\t.word	gfx.palette1.data	; address for the graphics\n\n\n");
+
+
+		}
+		
     }
-    else
-    {
-        array = (uint8_t *)malloc(calc_data_size());
-        data = array;
-        *data++ = width;
-        *data++ = height;
-    }
-    int j;
+    array = (uint8_t *)malloc(calc_data_size());
+    data = array;
+    *data++ = width;
+    *data++ = height;
+
+	int j;
     for(j=0; j < height; ++j)
     {
         int first_byte = 0;
         int error_found = -1;
         int background = find_background_color(j);
-        if (asm_mode)
+        if ((asm_mode)&&(!blt_format))
         {
-            fprintf(f," .byte $%02x ;  \"%s\" palette for line %d , data following :\n .byte ",
-                palette_for_picture[background], text_for_palette[background], j);
+           	fprintf(f," .byte $%02x ;  \"%s\" palette for line %d , data following :\n .byte ",
+               	palette_for_picture[background], text_for_palette[background], j);
         }
-        else {
-            *data++ = palette_for_picture[background];
-        }
+        *data++ = palette_for_picture[background];
         int shift = 6;
         int dat = 0;
         int i;
@@ -430,7 +450,7 @@ static int convert(const char *filename, int asm_mode)
             shift -= 2;
             if (shift < 0)
             {
-                if (asm_mode)
+                if ((asm_mode)&&(!blt_format))
                 {
                     if (!first_byte)
                     {
@@ -442,10 +462,7 @@ static int convert(const char *filename, int asm_mode)
                         fprintf(f, ",$%02x", dat);                        
                     }
                 }
-                else
-                {
-                    *data++ = dat;
-                }
+                *data++ = dat;
                 dat = 0;
                 shift = 6; 
             }
@@ -453,7 +470,7 @@ static int convert(const char *filename, int asm_mode)
         /* put rest bits into mask */
         if (shift != 6)
         {
-            if (asm_mode)
+            if ((asm_mode)&&(!blt_format))
             {
                 if (!first_byte)
                 {
@@ -465,10 +482,7 @@ static int convert(const char *filename, int asm_mode)
                     fprintf(f, ",$%02x\n", dat);                        
                 }
             }
-            else
-            {
-                *data++ = dat;
-            }
+            *data++ = dat;
         }
         if (error_found >= 0)
         {
@@ -477,22 +491,57 @@ static int convert(const char *filename, int asm_mode)
         //printf("\n");
     }
     //printf("%d %d\n", data - array, calc_data_size());
+  
+	if ((!asm_mode)&&(filename))
+	{
+		f = fopen(filename, "wb");
+		if (f)
+		{
+			fwrite(array, 1, data - array, f);
+			fclose(f);
+		}
+	}
+	if ((asm_mode)&&(blt_format))
+	{
+		/* First write the palette data*/	
+		fprintf(f,"\ngfx.palette1.data:");
+
+		for (j=0; j < height; ++j)
+		{
+			if (j % 16 == 0) {
+				fprintf(f,"\n\t.byte $%02x", array[2 + j*(((width+3)/4)+1)]); /* palette byte for line j */
+			}else
+			{
+				fprintf(f,",$%02x", array[2 + j*(((width+3)/4)+1)]); /* palette byte for line j */
+			}
+		}
+		fprintf(f,"\n\n");
+		/* Next the bitmap data*/	
+		fprintf(f,"gfx.multicolor.data:");
+		for (j=0; j < height; ++j)
+		{
+			int i;
+			for(i=0; i < (width+3)/4; ++i)
+			{
+				if (i % 16 == 0) {
+					fprintf(f,"\n\t.byte $%02x", array[3 + i + j*(((width+3)/4)+1)]); /* data byte for line j , byte i */
+				}
+				else
+				{
+					fprintf(f,",$%02x", array[3 + i + j*(((width+3)/4)+1)]); /* data byte for line j , byte i */
+				}
+			}
+			
+		}
+		fprintf(f,"\n\n");
+	}
     if (asm_mode)
-    {
-        fclose(f);
-    }
-    else
-    {
-        if (filename)
-        {
-            f = fopen(filename, "wb");
-            if (f)
-            {
-                fwrite(array, 1, data - array, f);
-                fclose(f);
-            }
-        }
-    }
+	{
+		fclose(f);
+	}
+	free(array);
+	return 0;
+		
 }
 
 
@@ -639,6 +688,7 @@ int main(int argc, char **argv)
         char *level_filename = "level.asm";
 	SDL_Surface *pic, *pic2;
 	FILE *f;
+	int blt_format = 0;
 	
 	SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER);
 	init_y_u_v();
@@ -677,7 +727,14 @@ int main(int argc, char **argv)
             filename = argv[2];
             asm_mode = ((strstr(filename, ".asm") != NULL) || (strstr(filename, ".ASM") != NULL));
         }
-	convert(filename, asm_mode);
+        if (argc >= 4 )
+        {
+            strcasecmp(argv[3],"--blt") == 0;
+			//printf("blt format enabled\n");
+			blt_format=1;
+		}
+		
+	convert(filename, asm_mode, blt_format);
         
 	SDL_AddTimer(500, timer_callback, NULL);
 	paintscreen();
