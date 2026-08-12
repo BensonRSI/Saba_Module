@@ -1,4 +1,6 @@
     .section .text
+#define USE_WORDMASK_ON_DC0    
+#define USE_WORDMASK_ON_PC0    
     .align 2
         #ifndef SIMULATOR
         .cpu cortex-m0
@@ -387,8 +389,10 @@ romc03:
 
 romc00_cont:
         add PC0,#1
+#ifdef USE_WORDMASK_ON_PC0        
         ldr r1, =WORD_MASK
         and PC0,r1
+#endif        
         b romcloop
         
 romc01:
@@ -404,8 +408,10 @@ romc01:
 romc01_cont:
         sxtb r1,DATA
         add PC0,r1
+#ifdef USE_WORDMASK_ON_PC0        
         ldr r1, =WORD_MASK
         and PC0,r1
+#endif        
         b romcloop
 
 romc02:
@@ -424,15 +430,19 @@ romc02:
         
 romc02_cont:
         add DC0,#1
+#ifdef USE_WORDMASK_ON_DC0        
         ldr r1, =WORD_MASK
         and DC0,r1
+#endif        
         b romcloop
 
 romc04:
 	//00100 	04 	S 	Copy the contents of PC1 into PC0. 
         mov PC0,PC1
+#ifdef USE_WORDMASK_ON_PC0        
         ldr r1, =WORD_MASK
         and PC0,r1
+#endif        
         b romcloop
         
 romc05:
@@ -443,8 +453,10 @@ romc05:
         strb DATA,[r1, DC0]
 romc05_cont:
         add DC0,#1
+#ifdef USE_WORDMASK_ON_DC0        
         ldr r1, =WORD_MASK
         and DC0,r1
+#endif        
         b romcloop
        
 romc06:
@@ -506,8 +518,10 @@ romc0a:
 	//01010 	0A 	L 	All devices add the 8-bit value on the data bus, treated as a signed binary number, to the data counter. 
         sxtb r1,DATA
         add DC0,r1
+#ifdef USE_WORDMASK_ON_DC0        
         ldr r1, =WORD_MASK
         and DC0,r1
+#endif        
         b romcloop
        
 romc0b:
@@ -533,16 +547,20 @@ romc0c_cont:
         ldr r1,=0xff00
         and PC0, r1
         orr PC0, DATA
+#ifdef USE_WORDMASK_ON_PC0        
         ldr r1, =WORD_MASK
         and PC0,r1
+#endif        
         b romcloop
 
 romc0d:
 	//01101 	0D 	S 	All devices store in PC1 the current contents of PC0, incremented by 1; PC0 is unaltered. 
         mov PC1,PC0
         add PC1,#1
+#ifdef USE_WORDMASK_ON_PC0        
         ldr r1, =WORD_MASK
         and PC1,r1
+#endif        
         b romcloop
 
 romc0e:
@@ -565,10 +583,10 @@ romc0f:
 	//				data bus. All devices must copy the contents of PC0 into PC1. All devices must move the contents of
 	//				the data bus into the low order byte of PC0.
         //                              As we are the only device which can trigger an interrupt, we will place our IRQ-vector on the bus
-        //                              The vector is stored in memory address $2800 + $2801
+        //                              The vector is stored in memory address $8 (higher) + $9 (lower) 
 	mov PC1,PC0
         mov r1,MEMORY
-        ldr r0,=0x2800
+        ldr r0,=0x9
         ldrb r0,[r1,r0]
         ldr r1,=0xff00
         and PC0, r1
@@ -612,10 +630,10 @@ romc13:
 	//				interrupting device resets its interupt circuitry (so that it is no longer requesting CPU servicing and can
 	//				respond to another interrupt). 
         //                              As we are the only device which can trigger an interrupt, we will place our IRQ-vector on the bus
-        //                              The vector is stored in memory address $2800 + $2801
-	mov PC1,PC0
+        //                              The vector is stored in memory address $8 (higher) + $9 (lower)
+	//mov PC1,PC0
         mov r1,MEMORY
-        ldr r0,=0x2801
+        ldr r0,=0x8
         ldrb r0,[r1,r0]
         ldr r1,=0x00ff
         and PC0, r1
@@ -638,8 +656,10 @@ romc14:
 #endif    
         lsl DATA,#8
         orr PC0,DATA
+#ifdef USE_WORDMASK_ON_PC0        
         ldr r1, =WORD_MASK
         and PC0,r1
+#endif        
         b romcloop
 
 romc15:
@@ -648,8 +668,10 @@ romc15:
         and PC1,r1
         lsl DATA,#8
         orr PC1,DATA
+#ifdef USE_WORDMASK_ON_PC0        
         ldr r1, =WORD_MASK
         and PC1,r1
+#endif        
         b romcloop
 
 romc16:
@@ -664,8 +686,10 @@ romc16:
         and DC0,r1
         lsl DATA,#8
         orr DC0,DATA
+#ifdef USE_WORDMASK_ON_DC0        
         ldr r1, =WORD_MASK
         and DC0,r1
+#endif        
         b romcloop
 
 romc17:

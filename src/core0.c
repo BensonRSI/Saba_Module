@@ -29,20 +29,22 @@ extern uint8_t memory[0x10000];
 // The adresses asre used for timer and IRQ-control
 // bit0-3 : IRQ control: 00=disable, 01=enable timer IRQ, others reserved
 // bit4: timer start/stop
-#define ICR_OFFSET 8
+#define ICR_OFFSET_ADR 0xa
 #define IRQ_CTRL_DISABLE 0
-#define IRQ_CTRL_MASK 0xfc // for further use ,bit 1
-#define IRQ_CTRL_ENABLE_TIMER 1
-#define TIMER_STOP_MASK 0xef
-#define TIMER_START 0x10
+#define IRQ_CTRL_MASK 0x03 // for further use ,bit 1+2
+#define IRQ_CTRL_ENABLE_TIMER_IRQ 3
+#define IRQ_CTRL_ENABLE_EXT_IRQ 2
 
-// this defines a 24-bit timer val, running at 1 Mhz
-// gives max delay of 16.777216 seconds
-// a value of 0 means timer stopped
+// this defines a 8-bit timer val, running at 38400 Hz
+// with a prescaler od 31 , so 1 timer tick is 26 us *31
+// a value of 0xff means timer stopped
+// with a maximum Timer Tick of 0xfe, this means a maximum timer value of 0xfe * 806 = 204.724 us = 204 ms
 
-#define TIMER_VAL_LOW 0x9
-#define TIMER_VAL_MID 0xa
-#define TIMER_VAL_HI 0xb
+#define IRQ_VECTOR_LOW_ADR 0x8
+#define IRQ_VECTOR_HI_ADR 0x9
+#define TIMER_VAL_ADR 0xb
+#define TIMER_STOP 0xff
+#define TIMER_CLOCK_MULTIPLIER 806 // 38400 Hz timer clock * 31  , so 1 timer tick = 806 us
 
 extern volatile uint8_t reset_triggered;
 uint8_t upload_memory[0x10000 - 0x800]; /* Maximum size we can use = 62k*/
@@ -106,6 +108,8 @@ void fill_ram(uint8_t val)
 static void alarm_irq(void);
 int timer_running = 0;
 int timer_val = 0;
+int timer_val_actual = 0;
+int timer_ticks = 0; // holds the value in uS for the next Timer IRQ
 
 static void alarm_in_us(uint32_t delay_us)
 {
@@ -134,14 +138,14 @@ static void alarm_irq(void)
    hw_clear_bits(&timer_hw->intr, 1u << ALARM_NUM);
 
    // Trigger IRQ , if enabled
-   if (memory[ICR_OFFSET] & IRQ_CTRL_ENABLE_TIMER)
+   if (memory[ICR_OFFSET_ADR] & IRQ_CTRL_ENABLE_TIMER_IRQ)
    {
       // set GPIO pin low to signal IRQ
       gpio_clr_mask(IRQ_OUT_MASK); // IRQ requested
-      printf("Timer IRQ triggered\n");
+      // printf("Timer IRQ triggered\n");
    }
    // Retrigger
-   alarm_in_us(timer_val);
+   alarm_in_us(timer_ticks);
 }
 
 static void alarm_cancel(void)
@@ -155,29 +159,47 @@ static void alarm_cancel(void)
    timer_running = 0;
 }
 
+const uint8_t timerval_to_counter[255] = {
+    0x7f, 0xbf, 0x5f, 0x2f, 0x97, 0xcb, 0xe5, 0x72, 0x39, 0x1c, 0x0e, 0x97, 0x43, 0xa1, 0xd0,
+    0xe8, 0xf4, 0x7a, 0x3d, 0x1e, 0x0f, 0x07, 0x03, 0x01, 0x00, 0x80, 0xc0, 0x60, 0xb0, 0xd8,
+    0xec, 0xf6, 0x7b, 0xbd, 0x5e, 0xaf, 0xa7, 0x6b, 0x35, 0x1a, 0x0d, 0x06, 0x83, 0x41, 0xa0,
+    0x50, 0xa8, 0x54, 0xaa, 0x55, 0x2a, 0x15, 0x8a, 0xc5, 0xe2, 0xf1, 0xf8, 0x7c, 0x3d, 0x9f,
+    0xcf, 0xe7, 0x73, 0xb9, 0x5c, 0xae, 0x57, 0x2b, 0x95, 0xca, 0x65, 0x32, 0x99, 0xcc, 0x55,
+    0xb3, 0x59, 0x2c, 0x16, 0x0b, 0x05, 0x02, 0x81, 0x40, 0x20, 0x10, 0x03, 0x84, 0xc2, 0x61,
+    0x30, 0x98, 0x4c, 0x26, 0x13, 0x89, 0x44, 0x22, 0x11, 0x88, 0xc4, 0x62, 0xb1, 0x58, 0xac,
+    0x56, 0xab, 0xd5, 0x6a, 0x85, 0x5a, 0xad, 0xd6, 0xeb, 0x75, 0xba, 0xdd, 0x6e, 0xb7, 0x5b,
+    0x2d, 0x96, 0x4b, 0xa5, 0xd2, 0xe9, 0x74, 0x3a, 0x9d, 0xce, 0x67, 0x33, 0x19, 0x8c, 0xc6,
+    0x63, 0x31, 0x18, 0x8c, 0xc6, 0x63, 0x31, 0x18, 0x0c, 0x86, 0xc3, 0xe1, 0x70, 0x38, 0x9c,
+    0x4e, 0x27, 0x93, 0xc9, 0xe4, 0xf2, 0x79, 0xbc, 0xde, 0xef, 0x77, 0xbb, 0x5d, 0x2e, 0x17,
+    0x8b, 0x45, 0xa2, 0x51, 0x28, 0x14, 0x0a, 0x84, 0x12, 0x06, 0x04, 0x82, 0xc1, 0xe0, 0xf0,
+    0x78, 0x3c, 0x9e, 0x4f, 0xa7, 0xd3, 0x69, 0x34, 0x9a, 0x4d, 0xa6, 0x53, 0x29, 0x94, 0x4a,
+    0x25, 0x92, 0x49, 0xa6, 0x52, 0xa9, 0xd4, 0xea, 0xf5, 0xfa, 0x7d, 0xbe, 0xdf, 0x8f, 0x37,
+    0x1b, 0x8d, 0x46, 0x23, 0x91, 0xc8, 0x64, 0xb2, 0xd9, 0x6c, 0xb6, 0xdb, 0x6d, 0x36, 0x9b,
+    0xcd, 0xe6, 0xf3, 0xf9, 0xfc, 0x7e, 0x3f, 0x1f, 0x8f, 0x47, 0xa3, 0xd1, 0x68, 0xb4, 0xda,
+    0xed, 0x76, 0x3b, 0x1d, 0x8e, 0xc7, 0xe3, 0x71, 0xb8, 0xdc, 0xee, 0xf7, 0xfb, 0xfd, 0xfe};
+
 void timer_control()
 {
-   if (((memory[ICR_OFFSET] & TIMER_START)) && (!timer_running))
+   timer_val = (memory[TIMER_VAL_ADR]);
+   int irq_val = (memory[ICR_OFFSET_ADR] & IRQ_CTRL_MASK);
+
+   if ((timer_val_actual != timer_val) && (irq_val == IRQ_CTRL_ENABLE_TIMER_IRQ))
    {
-      // timer not running, so start it
-      timer_val = (memory[TIMER_VAL_LOW] + (memory[TIMER_VAL_MID] << 8) + (memory[TIMER_VAL_HI] << 16));
-      if (timer_val > 0)
+      timer_val_actual = timer_val;
+      if (timer_val == 0xff)
       {
-         printf("Starting timer for %d us\n", timer_val);
-         alarm_in_us(timer_val);
+         // stop timer
+         // printf("Stopping timer\n");
+         alarm_cancel();
       }
       else
       {
-         // zero value means stop timer
-         printf("Timer value zero, not starting\n");
-         alarm_cancel();
+         // start timer
+         timer_ticks = timerval_to_counter[timer_val] * TIMER_CLOCK_MULTIPLIER; // convert to us
+
+         // printf("Starting timer with val 0x%02x  for %d us\n", timer_val, timer_ticks);
+         alarm_in_us(timer_ticks);
       }
-   }
-   if ((!(memory[ICR_OFFSET] & TIMER_START)) && (timer_running))
-   {
-      // stop timer
-      printf("Stopping timer\n");
-      alarm_cancel();
    }
 }
 
@@ -186,15 +208,12 @@ void simulate_timer(int start)
    if (start)
    {
       // set timer value to 1 sec
-      memory[TIMER_VAL_LOW] = 0x40;
-      memory[TIMER_VAL_MID] = 0x42;
-      memory[TIMER_VAL_HI] = 0x0f;
-      memory[ICR_OFFSET] |= TIMER_START | IRQ_CTRL_ENABLE_TIMER;
+      memory[TIMER_VAL_ADR] = 0x40;
+      memory[ICR_OFFSET_ADR] |= IRQ_CTRL_ENABLE_TIMER_IRQ;
    }
    else
    {
-      memory[ICR_OFFSET] &= TIMER_STOP_MASK;
-      memory[ICR_OFFSET] &= IRQ_CTRL_MASK;
+      memory[ICR_OFFSET_ADR] &= ~IRQ_CTRL_ENABLE_TIMER_IRQ;
    }
 }
 #ifdef DEBUG_STATES
@@ -242,6 +261,7 @@ void print_help()
    printf("------------------------------\n\n");
    printf("2025 by Benson and Peiselulli\n");
    printf("          of TRSI\n\n");
+   printf(" p: hexedit for IO-Ports\n");
    printf(" h: hexedit for ROMdump\n");
    printf(" k: hexedit for RAMdump\n");
    printf(" c: print clocksettings\n");
@@ -251,7 +271,7 @@ void print_help()
    printf(" f: fill mem with 0\n");
    printf(" r: run/stop 1-sec timer \n");
 #ifdef DEBUG_STATES
-   printf(" p: trace current PC0\n");
+   printf(" n: trace current PC0\n");
    printf(" j: trace current PC0, on highbyte change\n");
    printf(" t: trace current PC1\n");
    printf(" d: trace current DC0\n");
@@ -300,8 +320,12 @@ void console_rp2040()
    case 'a':
       printf("Doppeldoe\n");
       break;
+   case 'p':
+      hexedit(0x0000);
+      clear();
+      break;
    case 'h':
-      hexedit(0x800);
+      hexedit(0x0800);
       clear();
       break;
    case 'k':
@@ -371,7 +395,7 @@ void console_rp2040()
       printf("PC0: 0x%04x\n", print_val);
    }
    break;
-   case 'p':
+   case 'n':
       // get_tracedump(0,2000);
       {
          uint32_t *print_p = (uint32_t *)&debug_val[4];
@@ -467,8 +491,10 @@ void console_run()
       if (reset_triggered)
       {
          memcpy(&memory[0x0800], upload_memory, sizeof(upload_memory));
-         // memset(&memory[0x2800], 0x00, 0x400); // clear RAM to 0x00 // this
-         memset(&memory[0x0000], 0x00, 0x20); // clear IO-bank to 0x00
+         memset(&memory[0x2800], 0x00, 0x400); // clear RAM to 0x00
+         memset(&memory[0x0000], 0x00, 0x20);  // clear IO-bank to 0x00
+         alarm_cancel();
+         timer_val_actual = 0xff;
          reset_triggered = 0;
          printf("System Reset performed\n");
       }
