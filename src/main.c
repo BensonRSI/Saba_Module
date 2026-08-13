@@ -44,9 +44,10 @@ int main()
       while (1)
          ;
    }
-   // for toying with overclocking
-   //   set_sys_clock_khz( 133000, false );
 #endif
+   // for toying with overclocking
+   set_sys_clock_khz(133000, true); // 133 MHz is known to work on some devices
+
    // setup the bus and run the bus core
    multicore_launch_core1(bus_run);
 
