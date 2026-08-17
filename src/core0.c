@@ -47,6 +47,7 @@ extern uint8_t memory[0x10000];
 #define TIMER_CLOCK_MULTIPLIER 806 // 38400 Hz timer clock * 31  , so 1 timer tick = 806 us
 
 extern volatile uint8_t reset_triggered;
+extern volatile uint8_t irq_triggered;
 uint8_t upload_memory[0x10000 - 0x800]; /* Maximum size we can use = 62k*/
 #ifdef DEBUG_STATES
 extern volatile uint8_t debug_val[18000];
@@ -140,8 +141,10 @@ static void alarm_irq(void)
    // Trigger IRQ , if enabled
    if (memory[ICR_OFFSET_ADR] & IRQ_CTRL_ENABLE_TIMER_IRQ)
    {
+      // this is done by Core1 , so we can sync to the write-pulse
       // set GPIO pin low to signal IRQ
-      gpio_clr_mask(IRQ_OUT_MASK); // IRQ requested
+      // gpio_clr_mask(IRQ_OUT_MASK); // IRQ requested
+      irq_triggered = 1;
       // printf("Timer IRQ triggered\n");
    }
    // Retrigger

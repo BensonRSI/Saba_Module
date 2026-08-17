@@ -10,6 +10,7 @@
         .global memory
         .global memory_map
         .global reset_triggered
+        .global irq_triggered
 #ifdef DEBUG_STATES        
         .global debug_val
         DUMP_VAL = 0x020  // TODO : This collides with the tracing of the PC, so only choose one
@@ -134,6 +135,22 @@
         mov \reg0,#1
         lsl \reg0,#IRQ_OUT_SHIFT
         str \reg0,[SIO_REG, #GPIO_SET]
+        .endm
+
+        .macro check_and_set_irq reg0,reg1
+
+        ldr \reg1,=irq_triggered
+        ldrb \reg0,[\reg1]             // Signal from core 0 that irq should be triggered
+        cmp \reg0,#0
+        beq 1f
+        // enable irq line
+        mov \reg0,#0
+        strb \reg0,[\reg1]
+        mov \reg0,#1
+        lsl \reg0,#IRQ_OUT_SHIFT
+        str \reg0,[SIO_REG, #GPIO_CLR]
+
+1:
         .endm
 
         .macro read_romc reg0,reg1
@@ -356,6 +373,7 @@ romcloop:
         trace_pc
 #endif        
         disable_write r0
+        check_and_set_irq r0,r1
         wait_for_phi_falling r0,r1
 #ifdef DEBUG_STATES         
         set_debug_pin DEBUG_PIN_0_SHIFT,r1
@@ -477,7 +495,7 @@ romc06_cont:
         
 romc07:
 	//00111 	07 	L 	Place the high order byte of PC1 on the data bus. 
-        check_map PC1,r1
+        check_map PC1,r1     // first check if we are currently excuting the code, so we should place PC1
         beq romc07_cont
         mov r0,PC1
         lsr r0,#8
@@ -527,7 +545,7 @@ romc0a:
 romc0b:
 	//01011 	0B 	L 	The device whose address space includes the value in PC1 must place the low order byte of PC1 on
 	//				the data bus. 
-        check_map PC1,r1
+        check_map PC1,r1         // first check if we are currently excuting the code, so we should place PC1
         beq romc0b_cont
         write_data_bus_masked PC1,r1 
 romc0b_cont:
@@ -614,6 +632,10 @@ romc11_cont:
         lsl DATA,#8
         and DC0, r1
         orr DC0, DATA
+#ifdef USE_WORDMASK_ON_DC0        
+        ldr r1, =WORD_MASK
+        and DC0,r1
+#endif         
         b romcloop
 
 romc12:
@@ -623,6 +645,10 @@ romc12:
         ldr r1,=0xff00   
         and PC0, r1
         orr PC0, DATA
+#ifdef USE_WORDMASK_ON_PC0        
+        ldr r1, =WORD_MASK
+        and PC0,r1
+#endif         
         b romcloop
 romc13:
 	//10011 	13 	L 	The interrupting device with highest priority must move the high order half of the interrupt vector onto
@@ -639,6 +665,10 @@ romc13:
         and PC0, r1
         lsl r1,r0,#8
         orr PC0, r1
+#ifdef USE_WORDMASK_ON_PC0        
+        ldr r1, =WORD_MASK
+        and PC0,r1
+#endif         
         write_data_bus r0,r1
         disable_irq r0
         b romcloop
@@ -702,7 +732,11 @@ romc17:
         add r1,#DUMP_VAL
         add r1,#0x17
         strb DATA,[r1]
-#endif           
+#endif   
+#ifdef USE_WORDMASK_ON_PC0        
+        ldr r1, =WORD_MASK
+        and PC0,r1
+#endif         
         b romcloop
 
 romc18:
@@ -710,6 +744,10 @@ romc18:
         ldr r1,=0xff00
         and PC1,r1
         orr PC1,DATA
+#ifdef USE_WORDMASK_ON_PC0        
+        ldr r1, =WORD_MASK
+        and PC0,r1
+#endif         
         b romcloop
 
 romc19:
@@ -723,6 +761,10 @@ romc19:
         ldr r1,=0xff00
         and DC0,r1
         orr DC0,DATA
+#ifdef USE_WORDMASK_ON_DC0        
+        ldr r1, =WORD_MASK
+        and DC0,r1
+#endif          
         b romcloop
 romc1a:
 	//11010 	1A 	L 	During the prior cycle, an I/O port timer or interrupt control register was addressed; the device
