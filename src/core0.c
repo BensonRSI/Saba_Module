@@ -10,6 +10,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
+#include <stdlib.h>
+
 #include <pico/multicore.h>
 #include <pico/stdlib.h>
 #include <pico/util/queue.h>
@@ -24,7 +26,9 @@
 #include "xmodem.h"
 #include "flash_store.h"
 
-extern uint8_t memory[0x10000];
+#define TEST_PATTERN // Fill memory with test pattern instead of 0x00
+
+extern uint8_t memory[EMULATED_MEMSIZE]; // 64 k for Rom + 64 k banked Rom
 // the first 8 bytes of the memory are used as IO-Ports
 // The adresses asre used for timer and IRQ-control
 // bit0-3 : IRQ control: 00=disable, 01=enable timer IRQ, others reserved
@@ -43,12 +47,16 @@ extern uint8_t memory[0x10000];
 #define IRQ_VECTOR_LOW_ADR 0x8
 #define IRQ_VECTOR_HI_ADR 0x9
 #define TIMER_VAL_ADR 0xb
+#define ROM_BANK_ADR 0xc
 #define TIMER_STOP 0xff
 #define TIMER_CLOCK_MULTIPLIER 806 // 38400 Hz timer clock * 31  , so 1 timer tick = 806 us
 
 extern volatile uint8_t reset_triggered;
 extern volatile uint8_t irq_triggered;
-uint8_t upload_memory[0x10000 - 0x800]; /* Maximum size we can use = 62k*/
+
+uint8_t current_bank;
+uint8_t upload_memory[0x10000 - 0x800 + BANK_SIZE * EXTENSION_BANKS]; /* Maximum size we can use = 64 k +62k*/
+uint8_t *shadow_rom = &upload_memory[BANK_START_ADDRESS];             /* Shadow copy of the ROM when bank switching*/
 #ifdef DEBUG_STATES
 extern volatile uint8_t debug_val[18000];
 int trace_dump = 0;
@@ -98,8 +106,16 @@ void console_set_crlf(bool enable)
 
 void fill_ram(uint8_t val)
 {
-
-   memset(memory, val, sizeof(memory));
+#ifndef TEST_PATTERN
+   memset(memory, val, EMULATED_MEMSIZE);
+#else
+   for (uint32_t i = 0; i < EMULATED_MEMSIZE; i += 2)
+   {
+      memory[i + 1] = i / 2;
+      memory[i] = (i >> 8);
+   }
+   printf("Memory filled with test pattern\n");
+#endif
 }
 
 // Use alarm 0
@@ -275,6 +291,8 @@ void print_help()
    printf(" i: inventory of stored ROMs\n");
    printf(" f: fill mem with 0\n");
    printf(" r: run/stop 1-sec timer \n");
+   printf(" b: switch bank \n");
+
 #ifdef DEBUG_STATES
    printf(" n: trace current PC0\n");
    printf(" j: trace current PC0, on highbyte change\n");
@@ -330,7 +348,8 @@ void console_rp2040()
       clear();
       break;
    case 'h':
-      hexedit(0x0800);
+      // hexedit(0x0800);
+      hexedit(0xc000);
       clear();
       break;
    case 'k':
@@ -339,6 +358,20 @@ void console_rp2040()
       break;
    case 'c':
       debug_clocks();
+      break;
+   case 'b':
+      printf("Enter extension-Bank (00-3f) or (80-b0) for original:  \n");
+      fflush(stdout);
+      uint8_t actual_bank = strtol(getaline(), NULL, 16);
+      memory[ROM_BANK_ADR] = actual_bank;
+      if (actual_bank & 0x80)
+      {
+         printf("Switched to original bank 0x%02x\n", actual_bank & 0x7f);
+      }
+      else
+      {
+         printf("Switched to Rom Bank 0x%02x  to extensionbank 0x%02x\n", (actual_bank & 0x30) >> 4, (actual_bank & 0x0f));
+      }
       break;
    case 'f':
       printf("Clear Ram\n");
@@ -495,13 +528,30 @@ void console_run()
       console_rp2040();
       if (reset_triggered)
       {
-         memcpy(&memory[0x0800], upload_memory, sizeof(upload_memory));
-         memset(&memory[0x2800], 0x00, 0x400); // clear RAM to 0x00
-         memset(&memory[0x0000], 0x00, 0x20);  // clear IO-bank to 0x00
          alarm_cancel();
+         memcpy(&memory[0x0800], upload_memory, EMULATED_MEMSIZE - 0x800); // restore ROM to default
+         memset(&memory[0x2800], 0x00, 0x400);                             // clear RAM to 0x00
+         memset(&memory[0x0000], 0x00, 0x20);                              // clear IO-bank to 0x00
          timer_val_actual = 0xff;
          reset_triggered = 0;
          printf("System Reset performed\n");
+      }
+      volatile uint8_t actual_bank = memory[ROM_BANK_ADR];
+      if (actual_bank != current_bank)
+      {
+         current_bank = actual_bank;
+         uint8_t rom_bank = (actual_bank & 0x30) >> 4;
+         uint8_t original_bank = (actual_bank & 0x80);
+         uint8_t extension_bank = actual_bank & 0xf;
+
+         if (original_bank)
+         {
+            memcpy(&memory[BANK_START_ADDRESS + BANK_SIZE * rom_bank], &shadow_rom[rom_bank * BANK_SIZE], BANK_SIZE); // set bit7 for original bank
+         }
+         else
+         {
+            memcpy(&memory[BANK_START_ADDRESS + BANK_SIZE * rom_bank], &upload_memory[EMULATED_MEMSIZE + BANK_SIZE * extension_bank], BANK_SIZE); // set bit7 for original bank
+         }
       }
 #ifdef DEBUG_STATES
       if (trace_dump & 0x01)
