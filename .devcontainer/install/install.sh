@@ -17,7 +17,8 @@ apt-get install -y --no-install-recommends \
   gcc-arm-none-eabi \
   libnewlib-arm-none-eabi \
   libstdc++-arm-none-eabi-newlib \
-  libusb-1.0-0-dev
+  libusb-1.0-0-dev \
+  libncurses5-dev
   
 apt-get clean
 rm -rf /var/lib/apt/lists/*

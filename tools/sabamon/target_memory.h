@@ -6,7 +6,7 @@
 #define SIZE_OF_MEMDUMP 16
 
 #define SIZE_OF_MEM 0x10000
-#define NO_SERIAL
+//#define NO_SERIAL
 
 typedef struct 
 {

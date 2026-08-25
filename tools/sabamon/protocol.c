@@ -1,6 +1,7 @@
 #include "serial.h"
 #include "protocol.h"
 #include <string.h>
+#include <stdio.h>
 
 void get_mem(tWord adr, tByte length, tByte *ptr)
 {
