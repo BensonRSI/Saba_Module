@@ -30,11 +30,11 @@
 #define EMULATED_MEMSIZE 0x8000
 uint16_t memory[EMULATED_MEMSIZE];
 #else
-#define EMULATED_MEMSIZE 0x10000
 uint8_t memory[EMULATED_MEMSIZE];
 #endif
 volatile uint8_t reset_triggered = 0;
 volatile uint8_t irq_triggered = 0;
+volatile uint8_t actual_bank = 0;
 
 const uint8_t memory_map[64] = {
     0,    /* 0000 */
