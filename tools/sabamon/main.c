@@ -4,14 +4,20 @@
 #include "editscreen.h"
 #include "target_memory.h"
 
-int main()
+int main(int argc, char *argv[])
 {
 //	unsigned char buf[256];
 //	int i,j;
 
+char *device_name = MODEMDEVICE;
+
+if(argc > 1)
+{
+	device_name = argv[1];
+}
 
 #ifndef NO_SERIAL
-	open_serial();
+	open_serial((const char *)device_name);
 #endif
 	init_mem();
 //	read_mem(0x400, 0x200);

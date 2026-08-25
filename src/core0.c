@@ -341,7 +341,7 @@ void console_rp2040()
       // no USB/stdin key available — skip blocking read
       return;
    }
-   printf("Got key: %d\n", c);
+   
    switch (c)
    {
    case 'a':
@@ -429,6 +429,53 @@ void console_rp2040()
    case 'i':
       print_cart_dir();
       break;
+
+   // Setter and getter for the SabaMon Protocol :
+   // 'S' / 'G' + 2 bytes address + 1 byte length + 'U' + values for setter
+   // 'J' is a Jump command, but we cannot implement it , so we just ignore it
+   case 'G':
+   {
+      uint16_t address = getchar() + (getchar() << 8);
+      uint8_t length = getchar();
+      uint8_t marker = getchar();
+      if (marker != 'U')
+      {
+         printf("Invalid marker for Get command\n");
+         break;
+      }
+      // this will break the protocol
+      //printf("Get %d bytes from 0x%04x\n", length, address); 
+      for (int i = 0; i < length; i++)
+      {
+         putchar_raw(memory[address + i]);
+      }
+   }
+   break;
+   case 'S':
+   {
+      uint16_t address = getchar() + (getchar() << 8);
+      uint8_t length = getchar();
+      uint8_t marker = getchar();
+      if (marker != 'U')
+      {
+         printf("Invalid marker for Set command\n");
+         break;
+      }
+      // this will break the protocol      
+      //printf("Set %d bytes to 0x%04x\n", length, address);
+      for (int i = 0; i < length; i++)
+      {
+         memory[address + i] = getchar();
+      }
+   }
+   break;
+   case 'J':
+   {
+      uint16_t address = getchar() + (getchar() << 8);
+      printf("Jump to 0x%04x ( ignored )\n", address);
+   }
+   break;
+
 #ifdef DEBUG_STATES
    case 'x':
    {
@@ -494,6 +541,7 @@ void console_rp2040()
 #endif
 
    default:
+      printf("Got key: 0x%02x \n", c);
       print_help();
       break;
    }
