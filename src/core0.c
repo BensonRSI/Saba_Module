@@ -26,11 +26,11 @@
 #include "xmodem.h"
 #include "flash_store.h"
 
-#define TEST_PATTERN // Fill memory with test pattern instead of 0x00
+// #define TEST_PATTERN // Fill memory with test pattern instead of 0x00
 
 extern uint8_t memory[EMULATED_MEMSIZE]; // 64 k for Rom + 64 k banked Rom
-// the first 8 bytes of the memory are used as IO-Ports
-// The adresses asre used for timer and IRQ-control
+// the first 32 bytes of the memory are used as IO-Ports
+// The addresses are used for timer and IRQ-control and bank switching
 // bit0-3 : IRQ control: 00=disable, 01=enable timer IRQ, others reserved
 // bit4: timer start/stop
 #define ICR_OFFSET_ADR 0xa
@@ -164,6 +164,8 @@ static void alarm_irq(void)
       // printf("Timer IRQ triggered\n");
    }
    // Retrigger
+   // This is not the actual behaviour of a F3853, which will retrigger at maxmium value,
+   // but that doesn't make any sense.
    alarm_in_us(timer_ticks);
 }
 
@@ -178,6 +180,8 @@ static void alarm_cancel(void)
    timer_running = 0;
 }
 
+// Timer conversion table for the 8-bit timer value to the actual counter value in us
+// The F3853 implements the timer not as counter, but as shift register . ( What the heck ??? )
 // clang-format off
 const uint8_t timerval_to_counter[256] = {
     0x18, 0x17, 0x51, 0x56, 0xaf, 0x50, 0xae, 0x15, 0x00, 0x00, 0xab, 0x4f, 0x8f, 0x28, 0x0a, 0x14,  //0x00-0x0F
@@ -228,7 +232,7 @@ void simulate_timer(int start)
 {
    if (start)
    {
-      // set timer value to 1 sec
+      // set timer value
       memory[TIMER_VAL_ADR] = 0x40;
       memory[ICR_OFFSET_ADR] |= IRQ_CTRL_ENABLE_TIMER_IRQ;
    }
@@ -348,8 +352,7 @@ void console_rp2040()
       clear();
       break;
    case 'h':
-      // hexedit(0x0800);
-      hexedit(0xc000);
+      hexedit(0x0800);
       clear();
       break;
    case 'k':
