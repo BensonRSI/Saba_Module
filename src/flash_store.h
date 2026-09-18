@@ -10,8 +10,8 @@
 */
 
 /* Defines */
-#define MAX_CART_NO 100
-#define MAX_CART_SIZE 1024 * 8 // 8 k per cart, so we can store 128 carts in 1 MB flash ( minus config and dir entries )
+#define MAX_CART_NO 15
+#define MAX_CART_SIZE (1024 * 64) // 64 k per cart, so we can store 16 carts in 1 MB flash ( minus config and dir entries )
 
 #define FLASH_DATA_OFFSET 0x100000 // offset in flash where cart data starts ( after programm)
 #define CFG_CONFIG_SIZE 4096       // one sector

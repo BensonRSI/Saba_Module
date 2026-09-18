@@ -290,8 +290,8 @@ void print_help()
    printf(" h: hexedit for ROMdump\n");
    printf(" k: hexedit for RAMdump\n");
    printf(" c: print clocksettings\n");
-   printf(" u: upload rom-image via xmodem to ram(max 8k)\n");
-   printf(" w: write rom-image via xmodem to flash(max 8k)\n");
+   printf(" u: upload rom-image via xmodem to ram(max 64k)\n");
+   printf(" w: write rom-image via xmodem to flash(max 64k)\n");
    printf(" i: inventory of stored ROMs\n");
    printf(" f: fill mem with 0\n");
    printf(" r: run/stop 1-sec timer \n");
@@ -574,6 +574,14 @@ void console_run()
    print_help();
    memset(upload_memory, 0x00, sizeof(upload_memory));
    memcpy(upload_memory, demo_data, sizeof(demo_data));
+   if (is_cart_data_valid(0))
+   {
+      printf("ROM-Slot 0 valid, fetching demo data\n");
+      dir_entry *cart_dir_entry = get_cart_dir_entry(0);
+      uint32_t cart_size = cart_dir_entry->size;
+      memcpy(upload_memory, (uint8_t *)(get_cart_flash_offset(0) + XIP_BASE), cart_size);
+      printf("Demo data fetched, size %d bytes\n", cart_size);
+   }
    for (;;)
    {
       console_rp2040();
