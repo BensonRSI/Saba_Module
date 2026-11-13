@@ -30,3 +30,28 @@ type "make go" this will build and upload the firmware.
 
 
 
+## Timer
+
+The module emulates an 8‑bit timer (F3853-like) which is controlled via the I/O area:
+
+- I/O offsets used in the implementation (see `src/core0.c`):
+	- `ICR_OFFSET_ADR` = 0x0a — IRQ / timer control (enable/disable timer IRQs)
+	- `TIMER_VAL_ADR` = 0x0b — 8‑bit timer value; writing `0xff` stops the timer, any other value starts it
+- Internals: the timer value is converted using the `timerval_to_counter[]` table and multiplied by `TIMER_CLOCK_MULTIPLIER` (806) to produce a delay in microseconds. When the timer expires and timer IRQs are enabled the emulator sets an IRQ flag (`irq_triggered`) which is used to signal an interrupt to the emulated system.
+- Console: press `r` in the serial console to toggle a simulated timer (calls `simulate_timer()` in `src/core0.c`).
+
+See implementation: [src/core0.c](src/core0.c#L1-L220).
+
+## Bank switching
+
+The emulator supports mapping extension ROM banks into the four switchable banks of the emulated address space.
+
+- Control address: `ROM_BANK_ADR` = 0x0c (write a single byte to select mapping).
+- Encoding: write `PortC = (Bank << 4) | ExtensionIndex` to map an extension ROM into `Bank` (0..3). To restore a bank to its original ROM content, set bit 7 when writing to `PortC` (i.e. `0x80 + (Bank << 4)`). Detailed mapping is documented in [src/RomMapper.md](src/RomMapper.md#L66-L83).
+- Memory layout: switchable banks start at `BANK_START_ADDRESS` (`0xC000`) with `BANK_SIZE` bytes per bank (`0x1000`). When a bank change is detected the emulator copies either from the shadow copy of the original ROM or from the uploaded extension data into the runtime memory.
+- Console: press `b` in the serial console to enter a bank value interactively; the console writes the value to `ROM_BANK_ADR` and prints the resulting mapping.
+
+See implementation: [src/core0.c](src/core0.c#L220-L700) and [src/RomMapper.md](src/RomMapper.md#L54-L83).
+
+
+
