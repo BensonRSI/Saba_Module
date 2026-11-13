@@ -7,11 +7,11 @@ see : https://channelf.se/veswiki/index.php?title=Main_Page or
 https://en.wikipedia.org/wiki/Fairchild_Channel_F
 
 
-The replacement module consist of a Raspberry RP2040 microcontroller ( + a levelshifter for 3.3 / 5 V conversion ) 
+The replacement module consist of a Raspberry RP2040 microcontroller  ( + a levelshifter for 3.3 / 5 V conversion ) 
 that emulates an F3851 adressdecoder IC and holds the ROMs and additional RAM for the programms.
 
 It samples the module extension port on a high rate and implements the statemachine, that will do the generation of the programm-counter and adress-generator.
-To archieve a high sample-speed these parts arm written in ARM assembler ( thumb ) and running exclusivly on core 1
+To archieve a high sample-speed these parts are written in ARM assembler ( thumb ) and running exclusivly on core 1
 
 The first core does some convenience functions. You can connect through the USB-line, with a serial terminal on 115200 and get a little menu to 
 diplay the memory, load different ROMs from the build-in flash or upload ROMs with xmodem-protocol.
@@ -89,7 +89,11 @@ cp ~/Downloads/spacewar.bin roms/02.BIN
 
 The script writes the ROMs to consecutive slots and uses the cart names as labels inside the module.
 
-## Timer
+## Additions to the Rom-Emulation 
+
+Even if it was seductive to add some extra computation power, i restricted it to extensions, which could have been existed in the early days of the console. ( But ofcourse nobody would have paid for 144 kb of ROM ,that time ;) )
+
+### Timer
 
 The module emulates an 8‑bit timer (F3853-like) which is controlled via the I/O area:
 
@@ -101,9 +105,9 @@ The module emulates an 8‑bit timer (F3853-like) which is controlled via the I/
 
 See implementation: [src/core0.c](src/core0.c#L1-L220).
 
-## Bank switching
+### Bank switching
 
-The emulator supports mapping extension ROM banks into the four switchable banks of the emulated address space.
+The emulator supports mapping extension ROM banks into the four switchable banks of the emulated address space. This is for modules, that exceeding the 64kb boundary. The idea is to have 4 "windows" looking into the upper memory. (While we were developing our demo "Channel T", we had the fear of crossing that boundary, with code and music data. At the end, we optimized a bit and ended at 44k.) 
 
 - Control address: `ROM_BANK_ADR` = 0x0c (write a single byte to select mapping).
 - Encoding: write `PortC = (Bank << 4) | ExtensionIndex` to map an extension ROM into `Bank` (0..3). To restore a bank to its original ROM content, set bit 7 when writing to `PortC` (i.e. `0x80 + (Bank << 4)`). Detailed mapping is documented in [src/RomMapper.md](src/RomMapper.md#L66-L83).
