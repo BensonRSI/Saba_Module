@@ -1,0 +1,38 @@
+{
+  "name": "saba_pico_buildenv",
+  "image": "mcr.microsoft.com/vscode/devcontainers/base:ubuntu-24.04",
+  "appPort": [],
+  "forwardPorts": [
+    8000
+  ],
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.profiles.linux": {
+          "bash": {
+            "path": "/bin/bash"
+          }
+        },
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "python.defaultInterpreterPath": "/usr/bin/python3",
+        "http.proxyStrictSSL": false,
+        "editor.formatOnSave": true
+      },
+      "extensions": [
+      ]
+    }
+  },
+  "onCreateCommand": "bash .devcontainer/install/onCreateCommand.sh",
+  "postStartCommand": "bash .devcontainer/install/postCreateCommand.sh",
+  "remoteUser": "vscode",
+  "containerEnv": {
+    "PICO_SDK_FETCH_FROM_GIT": "ON",
+    "PICOTOOL_FETCH_FROM_GIT_PATH": "../build/_deps"
+  },
+  "runArgs": [
+    //"--privileged", // Needed for USB-connection
+    //"--device=/dev/ttyACM0",
+    // "--device=/dev/ttyACM1"
+    // uncomment if you have picoprobe installed
+  ]
+}

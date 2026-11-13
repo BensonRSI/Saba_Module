@@ -28,7 +28,7 @@ jobs:
       - name: Run Static Code Analysis
         uses: devcontainers/ci@v0.3
         with:
-          configFile: .devcontainer/devcontainer.json
+          configFile: .devcontainer/.devcontainer.json
           imageName: ghcr.io/bensonrsi/saba_module_devcontainer
           cacheFrom: ghcr.io/bensonrsi/saba_module_devcontainer
           runCmd: |

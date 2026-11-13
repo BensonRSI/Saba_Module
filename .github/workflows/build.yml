@@ -34,7 +34,7 @@ jobs:
       - name: Create devcontainer
         uses: devcontainers/ci@v0.3
         with:
-          configFile: .devcontainer/devcontainer.json
+          configFile: .devcontainer/.devcontainer.json
           imageName: ghcr.io/bensonrsi/saba_module_devcontainer
           cacheFrom: ghcr.io/bensonrsi/saba_module_devcontainer
           push: always
@@ -42,7 +42,7 @@ jobs:
       - name: Build Saba Module 
         uses: devcontainers/ci@v0.3
         with:
-          configFile: .devcontainer/devcontainer.json
+          configFile: .devcontainer/.devcontainer.json
           imageName: ghcr.io/bensonrsi/saba_module_devcontainer
           runCmd: |
             set -euo pipefail
