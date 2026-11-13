@@ -2,4 +2,7 @@ build
 tools/sabamon/*.o
 tools/sabamon/sabamon
 roms
-
+.secrets
+src/clang-tidy-report.txt
+src/cppcheck-report.xml
+board_1.1/sn74lvc16245a.pdf

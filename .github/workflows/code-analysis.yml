@@ -1,0 +1,121 @@
+name: Static Code Analysis
+on: [push]
+
+jobs:
+  code-analysis:
+    name: Static Code Analysis
+    runs-on: ubuntu-24.04
+    
+    permissions:
+      contents: read
+      packages: write
+      attestations: write
+      id-token: write 
+      
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - name: Login to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run Static Code Analysis
+        uses: devcontainers/ci@v0.3
+        with:
+          configFile: .devcontainer/devcontainer.json
+          imageName: ghcr.io/bensonrsi/saba_module_devcontainer
+          cacheFrom: ghcr.io/bensonrsi/saba_module_devcontainer
+          runCmd: |
+            set -euo pipefail
+            cd /workspaces/Saba_Module/src
+            
+            # Install analysis tools
+            sudo apt-get update && sudo apt-get install -y cppcheck clang-tidy
+            
+            # Run Cppcheck
+            cppcheck --version
+            cppcheck --enable=all --suppress=missingIncludeSystem \
+                     --output-file=cppcheck-report.xml \
+                     --check-level=exhaustive \
+                     --xml --xml-version=2 \
+                     . || true
+            
+            # Run clang-tidy on C files
+            echo "Running clang-tidy analysis..."
+            mkdir -p build-analysis
+            cd build-analysis
+            cmake -DCMAKE_BUILD_TYPE=Release \
+                  -DCMAKE_EXPORT_COMPILE_COMMANDS=TRUE \
+                  -S ../src -B . -G Ninja > /dev/null 2>&1 || true
+            cd ..
+            
+            find . -name "*.c" -type f > /tmp/c_files.txt
+            if [ -f build-analysis/compile_commands.json ]; then
+              clang-tidy -p build-analysis $(cat /tmp/c_files.txt) 2>&1 | tee clang-tidy-report.txt || true
+            else
+              clang-tidy $(cat /tmp/c_files.txt) 2>&1 | tee clang-tidy-report.txt || true
+            fi
+            
+            # Generate summary
+            SUMMARY_FILE="/tmp/github-step-summary.md"
+            if [ -n "${GITHUB_STEP_SUMMARY:-}" ] && [ -d "$(dirname "$GITHUB_STEP_SUMMARY")" ]; then
+              SUMMARY_FILE="$GITHUB_STEP_SUMMARY"
+            fi
+            {
+              echo "## 📊 Statische Code-Analyse"
+              echo ""
+              echo "### Übersicht"
+              echo ""
+              echo "#### Cppcheck"
+              if [ -f cppcheck-report.xml ]; then
+                ERROR_COUNT=$(grep -c '<error' cppcheck-report.xml 2>/dev/null || echo 0)
+                if [ "$ERROR_COUNT" -gt 0 ] 2>/dev/null; then
+                  ERRORS=$(grep -c 'severity="error"' cppcheck-report.xml 2>/dev/null || echo 0)
+                  WARNINGS=$(grep -c 'severity="warning"' cppcheck-report.xml 2>/dev/null || echo 0)
+                  STYLE=$(grep -c 'severity="style"' cppcheck-report.xml 2>/dev/null || echo 0)
+                  echo "❌ Gesamt: $ERROR_COUNT Probleme"
+                  if [ "$ERRORS" -gt 0 ] 2>/dev/null; then echo "  - Errors: $ERRORS"; fi
+                  if [ "$WARNINGS" -gt 0 ] 2>/dev/null; then echo "  - Warnings: $WARNINGS"; fi
+                  if [ "$STYLE" -gt 0 ] 2>/dev/null; then echo "  - Style issues: $STYLE"; fi
+                else
+                  echo "✅ Keine Probleme gefunden"
+                fi
+              fi
+              echo ""
+              echo "#### clang-tidy"
+              if [ -f clang-tidy-report.txt ]; then
+                CLANG_ISSUES=$(grep -c "warning:" clang-tidy-report.txt 2>/dev/null || echo 0)
+                if [ "$CLANG_ISSUES" -gt 0 ] 2>/dev/null; then
+                  echo "⚠️ $CLANG_ISSUES Warnungen gefunden"
+                else
+                  echo "✅ Keine Probleme gefunden"
+                fi
+              fi
+              echo ""
+              echo "### Reports"
+              echo " **XML Report**: cppcheck-report.xml"
+              echo " **clang-tidy Report**: clang-tidy-report.txt"
+              echo ""
+              echo "### Analysierte Verzeichnisse"
+              echo "- ."
+              echo ""
+              echo "### Tool"
+              echo "- Cppcheck (C/C++ Analyse)"
+              echo "- clang-tidy (LLVM Analyse)"
+            } >> "$SUMMARY_FILE"
+
+      - name: Upload analysis results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: code-analysis-reports
+          path: |
+            cppcheck-report.xml
+            clang-tidy-report.txt
+          retention-days: 30

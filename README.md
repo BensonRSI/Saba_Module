@@ -30,6 +30,65 @@ type "make go" this will build and upload the firmware.
 
 
 
+## ROM upload with upload_roms.sh
+
+The repository contains a helper script at [upload_roms.sh](upload_roms.sh) to upload multiple ROM images automatically via XMODEM.
+
+Typical workflow:
+
+1. Create a `roms/` directory and place your `.BIN` files there.
+2. Run:
+
+```bash
+./upload_roms.sh --setup
+```
+
+This scans the ROM folder and creates a names file such as `roms/rom_names.txt`.
+
+3. Edit the generated file in the format:
+
+```text
+01.BIN=ASTEROIDS
+02.BIN=SPACEWAR
+```
+
+The left side is the filename, the right side is the cart name shown in the module.
+
+4. Upload the ROMs to the module:
+
+```bash
+./upload_roms.sh --upload
+```
+
+The script sends each ROM sequentially through the configured serial port and writes it into the next slot. The default port is `/dev/ttyACM0`, which can be overridden with:
+
+```bash
+DEVICE=/dev/ttyACM1 ./upload_roms.sh --upload
+```
+
+Useful option:
+
+```bash
+./upload_roms.sh --dry-run
+```
+
+This previews the commands without sending the data.
+
+Example end-to-end workflow:
+
+```bash
+mkdir -p roms
+cp ~/Downloads/asteroids.bin roms/01.BIN
+cp ~/Downloads/spacewar.bin roms/02.BIN
+./upload_roms.sh --setup
+# edit roms/rom_names.txt to:
+# 01.BIN=ASTEROIDS
+# 02.BIN=SPACEWAR
+./upload_roms.sh --upload
+```
+
+The script writes the ROMs to consecutive slots and uses the cart names as labels inside the module.
+
 ## Timer
 
 The module emulates an 8‑bit timer (F3853-like) which is controlled via the I/O area:

@@ -1,0 +1,60 @@
+name: Build
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  build:
+    name: Build Saba Module
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+
+    permissions:
+      contents: read
+      packages: write
+      attestations: write
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - name: login to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create devcontainer
+        uses: devcontainers/ci@v0.3
+        with:
+          configFile: .devcontainer/devcontainer.json
+          imageName: ghcr.io/bensonrsi/saba_module_devcontainer
+          cacheFrom: ghcr.io/bensonrsi/saba_module_devcontainer
+          push: always
+
+      - name: Build Saba Module 
+        uses: devcontainers/ci@v0.3
+        with:
+          configFile: .devcontainer/devcontainer.json
+          imageName: ghcr.io/bensonrsi/saba_module_devcontainer
+          runCmd: |
+            set -euo pipefail
+            cd /workspaces/Saba_Module/src
+            rm -rf build
+            cmake -S . -B build -DPICOTOOL_FORCE_FETCH_FROM_GIT=ON
+            cmake --build build --config Release
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: saba_module-binaries
+          path: |
+            src/build/eprom_emulator.uf2
+            src/build/eprom_emulator.elf
