@@ -16,15 +16,17 @@
 #include <pico/stdlib.h>
 #include <pico/util/queue.h>
 #include <hardware/clocks.h>
+#include <hardware/flash.h>
 
 #include "common.h"
 #include "getaline.h"
 #include "mcurses.h"
 #include "hexedit.h"
 #include "bus.h"
-#include "demo.h" // default demo data
+#include "menu.h" // default menu data
 #include "xmodem.h"
 #include "flash_store.h"
+
 
 // #define TEST_PATTERN // Fill memory with test pattern instead of 0x00
 
@@ -48,8 +50,13 @@ extern uint8_t memory[EMULATED_MEMSIZE]; // 64 k for Rom + 64 k banked Rom
 #define IRQ_VECTOR_HI_ADR 0x9
 #define TIMER_VAL_ADR 0xb
 #define ROM_BANK_ADR 0xc
+#define CART_SELECT_ADR 0xd
+
 #define TIMER_STOP 0xff
 #define TIMER_CLOCK_MULTIPLIER 806 // 38400 Hz timer clock * 31  , so 1 timer tick = 806 us
+
+#define CART_DIR_MEM_START 0x2900   // Start address of the cartridge directory in memory
+
 
 extern volatile uint8_t reset_triggered;
 extern volatile uint8_t irq_triggered;
@@ -65,6 +72,7 @@ uint16_t print_buffer[2000];
 
 bool console_crlf_enabled;
 void debug_clocks();
+void cart_dir_to_mem();
 
 // default functions are RAM access functons by pointers
 uint8_t peekModuleMemory(uint16_t address)
@@ -278,6 +286,62 @@ void get_tracedump_x(int offset, int length)
    }
 }
 #endif
+
+void load_cart_data(uint8_t cart_no)
+{
+   if (is_cart_data_valid(cart_no))
+   {
+      dir_entry *cart_dir_entry = get_cart_dir_entry(cart_no);
+
+      printf("ROM-Slot %d valid, fetching cart data\n", cart_no);
+      printf("%06d\t| %06d\t| %s\n", get_cart_flash_size(cart_no), cart_dir_entry->size, cart_dir_entry->cart_name);
+      uint32_t cart_size = cart_dir_entry->size;
+      uint32_t cart_flash_mem_addr = get_cart_flash_offset(cart_no) + XIP_BASE;
+      memcpy(upload_memory, (uint8_t *)cart_flash_mem_addr, cart_size);
+      printf("Cart data fetched, size %d bytes from 0x%04x\n", cart_size, cart_flash_mem_addr);
+   }
+}
+
+void cart_control(void)
+{
+
+   uint8_t cart_select = memory[CART_SELECT_ADR];
+   uint32_t mem_ptr = CART_DIR_MEM_START;   
+   uint32_t cart_no = 0;
+   uint16_t cart_slot = 0;
+
+   if ((cart_select >0) && cart_select < MAX_CART_NO){
+      printf("Selected cart: %d\n", cart_select);
+      cart_no = (cart_select-1)*32;
+      cart_slot = memory[CART_DIR_MEM_START + cart_no + MAX_DIR_NAME_SIZE +1];
+      printf("Starting Cart slot: %d\n", cart_slot);
+      load_cart_data(cart_slot);
+      memory[CART_SELECT_ADR]=0x00;  // invalidate cart selection
+
+   }
+   if (cart_select == 0xff)
+   {
+      cart_dir_to_mem(); // restore cart directory to memory on reset
+      memory[CART_SELECT_ADR]=0x00;  // invalidate cart selection
+   }
+}
+
+uint8_t valid_char_table[128] = {
+   ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ',
+   ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ',
+   ' ', '!', '"', '*', '*', '*', '*', '\'', '(', ')', '*', '+', ',', '-', '.','*',
+   '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', ':', ';', '<', '=', '>', '?',
+   '*', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O',
+   'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', '[', '*', ']', '*', ' ',
+   '`', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O',
+   'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', '{', '|', '}', '*', ' '
+};
+
+uint8_t get_valid_char(char c)
+{
+   return valid_char_table[(unsigned char)c&0x7f];
+}
+
 void print_help()
 {
 
@@ -312,18 +376,48 @@ void print_cart_dir()
 {
 
    printf("----------------------------------------------\n");
-   printf("SlotNo\t| Size \t\t| Name\n");
+   printf("SlotNo\t|MaxSize\t| Size \t\t| Name\n");
    for (int i = 0; i < MAX_CART_NO; i++)
    {
       if (is_cart_data_valid(i))
       {
          printf("    %d\t| ", i);
          dir_entry *cart_dir_entry = get_cart_dir_entry(i);
-         printf("%06d\t| %s", cart_dir_entry->size, cart_dir_entry->cart_name);
+         printf("%06d\t| %06d\t| %s", get_cart_flash_size(i), cart_dir_entry->size, cart_dir_entry->cart_name);
          printf("\n");
       }
    }
    printf("---------------------------------------------\n\n");
+}
+
+void cart_dir_to_mem()
+{
+
+   uint32_t mem_ptr = CART_DIR_MEM_START;
+   uint8_t page_number =0;
+   for (int i = 0; i < MAX_CART_NO; i++)
+   {
+      if (is_cart_data_valid(i))
+      {
+         dir_entry *cart_dir_entry = get_cart_dir_entry(i);
+         for (int j = 0; j < MAX_DIR_NAME_SIZE; j++)
+         {
+            memory[mem_ptr++] = get_valid_char(cart_dir_entry->cart_name[j]); 
+         }
+         memory[mem_ptr++] = 0;  // string end marker
+         memory[mem_ptr++] = i;  // slot number for backward reference
+         memory[mem_ptr++] = cart_dir_entry->size & 0xff;
+         memory[mem_ptr++] = (cart_dir_entry->size >> 8) & 0xff;
+         mem_ptr += (32-(MAX_DIR_NAME_SIZE+1+1+2)); // alignment to 32 bytes per entry
+         if ((((uint32_t)mem_ptr) & 0xf0) == 0xc0)
+         {
+            mem_ptr += 0x40; // add one dummy entry, because we can only display 7 entries on screen 
+            page_number+=8;   
+         }
+      }
+      memory[CART_DIR_MEM_START+0xc0] = page_number;  // pass info about how much pages to be diplayed
+   }
+   
 }
 
 int doe_val = 1;
@@ -334,6 +428,10 @@ void console_rp2040()
    bool leave = false;
    int ret;
    int cart_size;
+   uint8_t cart_name[MAX_DIR_NAME_SIZE];
+   
+   
+
 
    int c = getchar_timeout_us(0);
    if (c == PICO_ERROR_TIMEOUT)
@@ -391,12 +489,15 @@ void console_rp2040()
       printf("Upload complete, %d bytes received\n", ret);
       break;
    case 'w':
-      printf("Enter ROM-Slot for writing (00-99): \n");
+      printf("RomSlot 00-%02d : 64 kB size \n", CART_SLOT_64K_MAX);
+      printf("RomSlot 04-%02d : 8 kB  size \n", CART_SLOT_8K_MAX);
+      printf("RomSlot 08-%02d : 4 kB  size \n",MAX_CART_NO-1);
+      printf("Enter ROM-Slot for writing (00-%02d): \n", MAX_CART_NO-1);
       fflush(stdout);
       sleep_ms(500); // give some time for the prompt to be sent before waiting for input
       in = getaline();
       int slot = strtol(in, NULL, 10);
-      if ((slot < 0) || (slot > 99))
+      if ((slot < 0) || (slot >=MAX_CART_NO))
       {
          printf("Invalid slot number\n");
          break;
@@ -405,11 +506,18 @@ void console_rp2040()
       fflush(stdout);
       sleep_ms(500); // give some time for the prompt to be sent before waiting for input
       in = getaline();
-      if (strlen(in) > 20)
+     
+      if (strlen(in) > (MAX_DIR_NAME_SIZE-1))
       {
-         printf("ROM name too long, max 20 chars\n");
+         printf("ROM name too long, max %d chars\n", MAX_DIR_NAME_SIZE-1);
          break;
       }
+      memset(cart_name, 0, MAX_DIR_NAME_SIZE);
+      for (int i = 0; i < strlen(in); i++)
+      {
+         cart_name[i] = (char)toupper((unsigned char)in[i]);
+      }
+      cart_name[MAX_DIR_NAME_SIZE-1] = '\0';
       printf("Write ROM start xmodem transfer now \n");
       cart_size = xmodemReceive(upload_memory, sizeof(upload_memory));
       if (cart_size <= 0)
@@ -420,6 +528,11 @@ void console_rp2040()
 
       sleep_ms(500); // give some time for the prompt to be sent before waiting for input
       printf("\n\nUpload complete, %d bytes received\n", cart_size);
+      // Check if the cart size is valid for the selected slot
+      if (!check_cart_slot_size(slot, cart_size))
+      {
+         break; // Nope
+      }
       ret = write_cart_data(upload_memory, cart_size, slot);
       printf("Data written, crc 0x%04x \n", ret);
       ret = validate_cart_data(slot, in, cart_size, 0, false);
@@ -551,11 +664,13 @@ void welcome()
 
    printf("\n\nWelcome to the SABA Videoplay Module Emulator\n");
    printf("Made by the mighty wizard of TRSI in 2024\n");
-   printf("Coding : PeiselUlli , Benson, SvOlli\n");
+   printf("Coding : Benson, PeiselUlli\n");
    printf("HW-Design: Benson\n\n");
 }
 void console_run()
 {
+
+   uint32_t msLastResetTime = 0;
 
    // init mcurses
    setFunction_putchar((void (*)(uint8_t))putchar); // putchar_raw
@@ -573,27 +688,33 @@ void console_run()
    getaline_init();
    print_help();
    memset(upload_memory, 0x00, sizeof(upload_memory));
-   memcpy(upload_memory, demo_data, sizeof(demo_data));
-   if (is_cart_data_valid(0))
-   {
-      printf("ROM-Slot 0 valid, fetching demo data\n");
-      dir_entry *cart_dir_entry = get_cart_dir_entry(0);
-      uint32_t cart_size = cart_dir_entry->size;
-      memcpy(upload_memory, (uint8_t *)(get_cart_flash_offset(0) + XIP_BASE), cart_size);
-      printf("Demo data fetched, size %d bytes\n", cart_size);
-   }
+   memcpy(upload_memory, menu_data, sizeof(menu_data));  // loading menu
+   
    for (;;)
    {
       console_rp2040();
       if (reset_triggered)
       {
+         uint32_t msCurrentResetTime = to_ms_since_boot(get_absolute_time());
          alarm_cancel();
+         if (msLastResetTime != 0)
+         {
+            printf("Time since last reset: %u ms\n", msCurrentResetTime - msLastResetTime);
+            if (msCurrentResetTime - msLastResetTime < 2000 && msCurrentResetTime - msLastResetTime > 250){
+               printf("System reset occurred within 2 seconds of the last reset, starting menu.\n");
+               memcpy(upload_memory, menu_data, sizeof(menu_data));  // loading menu
+            }    
+         }
+         msLastResetTime = msCurrentResetTime;
+
          memcpy(&memory[0x0800], upload_memory, EMULATED_MEMSIZE - 0x800); // restore ROM to default
          memset(&memory[0x2800], 0x00, 0x400);                             // clear RAM to 0x00
+       //  cart_dir_to_mem(); // restore cart directory to memory on reset , for test
          memset(&memory[0x0000], 0x00, 0x20);                              // clear IO-bank to 0x00
          timer_val_actual = 0xff;
          reset_triggered = 0;
          printf("System Reset performed\n");
+
       }
       volatile uint8_t actual_bank = memory[ROM_BANK_ADR];
       if (actual_bank != current_bank)
@@ -619,6 +740,7 @@ void console_run()
       }
 #endif
       timer_control();
+      cart_control();
       tight_loop_contents();
    }
 }
@@ -642,5 +764,8 @@ void debug_clocks()
    printf("CLK_PERI:            %3d.%03dMHz\n", f_clk_peri / 1000, f_clk_peri % 1000);
    printf("CLK_USB:             %3d.%03dMHz\n", f_clk_usb / 1000, f_clk_usb % 1000);
    printf("CLK_ADC:             %3d.%03dMHz\n", f_clk_adc / 1000, f_clk_adc % 1000);
-   printf("CLK_RTC:             %3d.%03dMHz\n", f_clk_rtc / 1000, f_clk_rtc % 1000);
+   printf("CLK_RTC:             %3d.%03dMHz\n\n", f_clk_rtc / 1000, f_clk_rtc % 1000);
+
+   printf ("FLASH_PAGE_SIZE:    0x%04x bytes\n", FLASH_PAGE_SIZE);
+   printf ("FLASH_SECTOR_SIZE:  0x%04x bytes\n", FLASH_SECTOR_SIZE);
 }

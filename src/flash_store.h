@@ -4,17 +4,24 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-/* For each cart , 1 Mb space ( minus 1 page ) is reserved in Flash
+/* For all carts , 1 Mb space ( minus 1 page ) is reserved in Flash
    the last page contains the directory. This is written, when all cart-data has been flashed
    The reserved space has to be a multiple of FLASH_PAGE_SIZE
 */
 
 /* Defines */
-#define MAX_CART_NO 15
+#define MAX_CART_NO 64
 #define MAX_CART_SIZE (1024 * 64) // 64 k per cart, so we can store 16 carts in 1 MB flash ( minus config and dir entries )
-
+#define MAX_DIR_NAME_SIZE 22   // including trailing 0
 #define FLASH_DATA_OFFSET 0x100000 // offset in flash where cart data starts ( after programm)
 #define CFG_CONFIG_SIZE 4096       // one sector
+
+#define CART_SLOT_64K_SIZE (64 * 1024)
+#define CART_SLOT_8K_SIZE (8 * 1024)
+#define CART_SLOT_4K_SIZE (4 * 1024)
+#define CART_SLOT_64K_MAX 4
+#define CART_SLOT_8K_MAX 12
+#define CART_SLOT_4K_MIN 13
 
 #define CFG_CRC1 30
 #define CFG_CRC2 31
@@ -57,7 +64,7 @@ typedef struct dir_entry_t
     __uint16_t crc;
     __uint32_t size;
     __uint32_t unused2;
-    __int8_t cart_name[21];
+    __int8_t cart_name[MAX_DIR_NAME_SIZE];
     __uint8_t terminate;
 
 } dir_entry;
@@ -138,12 +145,30 @@ uint32_t get_cart_size(int cart_no);
 /**
  * Validate and write cart directory entry
  * @param cart_no Cart number
+ * @param name Name of the cart
  * @param size Size of cart data
  * @param crc CRC checksum
  * @param use_crc Whether to use CRC validation
  * @return true if successful, false if CRC mismatch
  */
 bool validate_cart_data(int cart_no, const char *name, uint32_t size, uint16_t crc, bool use_crc);
+
+/**
+ * Get the maximum flash size for the given cart slot
+ * @param cart_no Cart number
+ * @return Maximum flash size for the cart slot
+ */
+uint32_t get_cart_flash_size(int cart_no);
+
+
+/**
+ * Check if the cart size is valid for the given slot
+ * @param cart_no Cart number
+ * @param cart_size Size of the cart data
+ * @return true if valid, false otherwise
+ */
+
+bool check_cart_slot_size(int cart_no, uint32_t cart_size);
 
 /**
  * Write cart data to flash

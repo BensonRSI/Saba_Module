@@ -14,13 +14,15 @@
 #include <pico/stdlib.h>
 #include <pico/util/queue.h>
 #include <pico/multicore.h>
-#include <pico/platform.h>
+#include <pico/platform.h>  
 #include <pico/binary_info.h>
 
 #include <hardware/clocks.h>
 #include <hardware/flash.h>
 
 #include "flash_store.h"
+
+
 
 uint32_t cart_flash_offset[MAX_CART_NO];
 dir_entry local_dir;
@@ -146,6 +148,51 @@ uint32_t get_cart_size(int cart_no)
     return cart_dir_entry->size;
 }
 
+uint32_t get_cart_flash_size(int cart_no){
+    if ((cart_no >= 0) && (cart_no <= CART_SLOT_64K_MAX))
+    {
+        return CART_SLOT_64K_SIZE;
+    }
+    else if ((cart_no >= 4) && (cart_no <= CART_SLOT_8K_MAX))
+    {
+        return CART_SLOT_8K_SIZE;
+    }
+    else if ((cart_no >= CART_SLOT_4K_MIN) && (cart_no < MAX_CART_NO))
+    {
+        return CART_SLOT_4K_SIZE;
+    }
+    return 0;
+}
+
+bool check_cart_slot_size(int cart_no, uint32_t cart_size)
+{
+    if ((cart_no >= 0) && (cart_no <= CART_SLOT_64K_MAX))
+    {
+        if (cart_size > CART_SLOT_64K_SIZE)
+        {
+            printf("Invalid cart size for slot %d\n", cart_no);
+            return false;
+        }
+    }
+    else if ((cart_no >= 4) && (cart_no <= CART_SLOT_8K_MAX))
+    {
+        if (cart_size > CART_SLOT_8K_SIZE)
+        {
+            printf("Invalid cart size for slot %d\n", cart_no);
+            return false;
+        }
+    }
+    else if ((cart_no >= CART_SLOT_4K_MIN) && (cart_no < MAX_CART_NO))
+    {
+        if (cart_size > CART_SLOT_4K_SIZE)
+        {
+            printf("Invalid cart size for slot %d\n", cart_no);
+            return false;
+        }
+    }
+    return true;
+}
+
 bool validate_cart_data(int cart_no, const char *name, uint32_t size, uint16_t crc, bool use_crc)
 {
 
@@ -157,8 +204,8 @@ bool validate_cart_data(int cart_no, const char *name, uint32_t size, uint16_t c
     local_dir.size = size;
     local_dir.crc = crc16((uint8_t *)(get_cart_flash_offset(cart_no) + XIP_BASE), size);
     printf("Calculated CRC for cart data: 0x%04x\n", local_dir.crc);
-    strncpy((char *)local_dir.cart_name, name, 20);
-    local_dir.cart_name[20] = 0;
+    strncpy((char *)local_dir.cart_name, name, MAX_DIR_NAME_SIZE-1);
+    local_dir.cart_name[MAX_DIR_NAME_SIZE-1] = 0;
     local_dir.terminate = 0; // make sure it is 0 terminated
     if ((local_dir.crc != crc) && (use_crc))
     {
@@ -188,7 +235,7 @@ uint16_t write_cart_data(uint8_t *cart_data, uint32_t size, int cart_no)
     sleep_ms(500); // give some time for the prompt to be sent before waiting for input
 
     // We can erase the whole area
-    erase_flash(flash_p, MAX_CART_SIZE);
+    erase_flash(flash_p, get_cart_flash_size(cart_no));
     for (uint32_t i = 0; i < size; i += FLASH_PAGE_SIZE)
     {
         uint8_t *cart_src = ((uint8_t *)cart_data) + i;
@@ -201,9 +248,17 @@ uint16_t write_cart_data(uint8_t *cart_data, uint32_t size, int cart_no)
 int init_flash_store()
 {
 
+    uint32_t current_offset = FLASH_DATA_OFFSET+FLASH_SECTOR_SIZE;  // First cart data offset after directory sector
+
     for (int i = 0; i < MAX_CART_NO; i++)
     {
-        cart_flash_offset[i] = FLASH_DATA_OFFSET + (MAX_CART_SIZE * (i + 1));
+        cart_flash_offset[i] = current_offset;
+        if (i <= CART_SLOT_64K_MAX)
+            current_offset += CART_SLOT_64K_SIZE;
+        else if (i <= CART_SLOT_8K_MAX)
+            current_offset += CART_SLOT_8K_SIZE;
+        else
+            current_offset += CART_SLOT_4K_SIZE;
     }
 
     return MAX_CART_NO;
