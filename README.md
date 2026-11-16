@@ -117,4 +117,9 @@ The emulator supports mapping extension ROM banks into the four switchable banks
 See implementation: [src/core0.c](src/core0.c#L220-L700) and [src/RomMapper.md](src/RomMapper.md#L54-L83).
 
 
+## AI usage note
+
+AI assistance was used during the creation of the tools `uplad_roms` and `xmodem_upload`.
+
+
 

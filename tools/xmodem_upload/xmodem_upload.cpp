@@ -320,7 +320,7 @@ int main(int argc, char **argv)
     bool got_start = false;
     while (waited < max_wait)
     {
-        ssize_t r = read_timeout(fd, &ch, 1, 500);
+        ssize_t r = read_timeout(fd, &ch, 1, 800);
         if (r < 0)
         {
             perror("read");
@@ -330,7 +330,7 @@ int main(int argc, char **argv)
         }
         else if (r == 0)
         {
-            waited += 500;
+            waited += 800;
             continue;
         }
         else
@@ -356,7 +356,7 @@ int main(int argc, char **argv)
             }
             else
             {
-                vprint("Ignored byte 0x%02x while waiting for start\n", ch);
+                vprint("Ignored byte 0x%02x (%c) while waiting for start\n", ch, isprint(ch) ? ch : '.' );
             }
         }
     }

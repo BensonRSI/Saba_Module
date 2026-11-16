@@ -63,6 +63,34 @@ int getkey(char *key)
    return 1;
 }
 
+
+int readline(int timeout, char *buffer, int buflen)
+{
+   int inpos = 0;
+   uint8_t c;
+
+   while (timeout > 0){      
+      int ret = getkey(&c);
+      if (ret)
+      {
+         // printf("%c[%d]", c, c);
+         if((c == 0x0d ) || (c == 0x0a )){
+          // printf("Enter pressed\n");
+            buffer[inpos] = '\0';
+            return inpos;
+         }
+         buffer[inpos] = c;
+         inpos++;
+         if (inpos >= buflen)
+         {
+            return -1;
+         }
+      }
+      timeout--;
+      }
+   return -1;
+}
+
 static int esc_seq(char *seq)
 {
    if (getkey(&seq[0]) != 1)

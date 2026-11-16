@@ -50,7 +50,7 @@ trim() {
 sanitize_cartname() {
   local value
   value="$(trim "$1")"
-  value="${value//[$'\r\n\t\f\v'] /}"
+  value="${value//[$'\r\n\t\f\v']/}"
   value="${value//[^[:print:]]/}"
   value="$(printf '%s' "$value" | cut -c1-21)"
   if [[ -z "$value" ]]; then
@@ -58,6 +58,24 @@ sanitize_cartname() {
   else
     printf '%s' "$value"
   fi
+}
+
+max_kb_for_slot() {
+  local slot_num="$1"
+  if ((slot_num >= 0 && slot_num <= 3)); then
+    printf '64'
+  elif ((slot_num >= 4 && slot_num <= 12)); then
+    printf '8'
+  else
+    printf '4'
+  fi
+}
+
+file_size_kb() {
+  local path="$1"
+  local bytes
+  bytes=$(stat -c%s "$path")
+  printf '%d' $(((bytes + 1023) / 1024))
 }
 
 write_template() {
@@ -86,14 +104,17 @@ write_template() {
     exit 1
   fi
 
-  mapfile -t sorted < <(printf '%s\n' "${files[@]}" | xargs -n 1 basename | sort)
-
   {
-    echo "# Edit each line as: <FILENAME>=<CARTNAME>"
-    echo "# Example: 01.BIN=ASTEROIDS"
+    echo "# Edit each line as: <SLOT> <SIZE_KB> <FILENAME>=<CARTNAME>"
+    echo "# Example: 01 64 01.BIN=ASTEROIDS"
     echo "# Max length: 21 chars"
-    for file in "${sorted[@]}"; do
-      printf '%s=\n' "$file"
+    slot_num=0
+    for path in "${files[@]}"; do
+      [[ -f "$path" ]] || continue
+      slot_num=$((slot_num + 1))
+      file="$(basename "$path")"
+      size_kb="$(file_size_kb "$path")"
+      printf '%02d %d %s=\n' "$slot_num" "$size_kb" "$file"
     done
   } > "$NAMES_FILE"
 
@@ -103,7 +124,7 @@ write_template() {
   echo "  $0 --upload"
 }
 
-load_names() {
+run_upload() {
   if [[ ! -f "$NAMES_FILE" ]]; then
     echo "Names file not found: $NAMES_FILE"
     echo "Create it with:"
@@ -111,61 +132,48 @@ load_names() {
     exit 1
   fi
 
-  declare -Ag cart_names=()
-  while IFS='=' read -r file value; do
-    file="$(trim "$file")"
-    value="$(trim "$value")"
+  while IFS= read -r line; do
+    line="$(trim "$line")"
+    [[ -z "$line" || "$line" == \#* ]] && continue
 
-    [[ -z "$file" || "$file" == \#* ]] && continue
-
-    cart_names["$file"]="$(sanitize_cartname "$value")"
-  done < "$NAMES_FILE"
-
-  printf '%s\n' "${!cart_names[@]}" | sort >/dev/null 2>&1 || true
-}
-
-run_upload() {
-  shopt -s nullglob
-  files=("$ROMS_DIR"/*.BIN "$ROMS_DIR"/*.bin)
-  if [[ ${#files[@]} -eq 0 ]]; then
-    echo "No .BIN files found in $ROMS_DIR"
-    exit 1
-  fi
-
-  declare -A cart_names=()
-  while IFS='=' read -r file value; do
-    file="$(trim "$file")"
-    value="$(trim "$value")"
-    [[ -z "$file" || "$file" == \#* ]] && continue
-    cart_names["$file"]="$(sanitize_cartname "$value")"
-  done < "$NAMES_FILE"
-
-  mapfile -t sorted < <(printf '%s\n' "${files[@]}" | xargs -n 1 basename | sort)
-
-  count=0
-  for file in "${sorted[@]}"; do
-    full_path="$ROMS_DIR/$file"
-    if [[ ! -f "$full_path" ]]; then
-      continue
-    fi
-
-    count=$((count + 1))
-    slot=$(printf '%02d' "$count")
-    cart="${cart_names[$file]:-}"
-
-    if [[ -z "$cart" ]]; then
-      echo "Missing entry for $file in $NAMES_FILE"
+    if [[ ! "$line" =~ ^([0-9]{2})[[:space:]]+([0-9]+)[[:space:]]+([^=]+)=(.*)$ ]]; then
+      echo "Invalid line in $NAMES_FILE: $line"
+      echo "Expected format: <SLOT> <SIZE_KB> <FILENAME>=<CARTNAME>"
       exit 1
     fi
 
-    echo "Slot $slot -> $full_path -> CARTNAME=$cart"
-    if [[ "$DRY_RUN" -eq 1 ]]; then
-      printf '%s\n' "$XMODEM_BIN -f \"$full_path\" -d \"$DEVICE\" -p \"w${slot}\\n${cart}\\n\" -b 115200"
-    else
-      "$XMODEM_BIN" -f "$full_path" -d "$DEVICE" -p "w${slot}\n${cart}\n" -b 115200
+    slot="${BASH_REMATCH[1]}"
+    declared_size_kb="${BASH_REMATCH[2]}"
+    file="$(trim "${BASH_REMATCH[3]}")"
+    cart="$(sanitize_cartname "${BASH_REMATCH[4]}")"
+    full_path="$ROMS_DIR/$file"
+
+    if [[ ! -f "$full_path" ]]; then
+      echo "WARNING: ROM file not found for line: $line"
+      echo "WARNING: Expected file: $full_path"
+      continue
     fi
-    sleep 5
-  done
+
+    slot_num=$((10#$slot))
+    actual_size_kb="$(file_size_kb "$full_path")"
+    max_kb="$(max_kb_for_slot "$slot_num")"
+
+    if ((actual_size_kb > max_kb)); then
+      echo "WARNING: slot $slot allows max ${max_kb}kB, but $file has ${actual_size_kb}kB"
+    fi
+
+    if ((declared_size_kb != actual_size_kb)); then
+      echo "WARNING: declared size ${declared_size_kb}kB differs from actual ${actual_size_kb}kB for $file"
+    fi
+
+    echo "Slot $slot -> $full_path -> SIZE=${actual_size_kb}kB -> CARTNAME=$cart"
+    if [[ "$DRY_RUN" -eq 1 ]]; then
+      printf '%s\n' "$XMODEM_BIN -f \"$full_path\" -d \"$DEVICE\" -p \"W${slot}\\n${cart}\\n\" -b 115200"
+    else
+      "$XMODEM_BIN" -f "$full_path" -d "$DEVICE" -p "W${slot}\n${cart}\n" -b 115200
+      sleep 8
+    fi
+  done < "$NAMES_FILE"
 }
 
 case "$ACTION" in
@@ -181,6 +189,7 @@ case "$ACTION" in
     echo "  $0 --upload     Upload all ROMs using the names file"
     echo "  $0 --dry-run    Preview the upload commands without sending data"
     echo ""
+    echo "File format: <SLOT> <SIZE_KB> <FILENAME>=<CARTNAME>"
     echo "Names file: $NAMES_FILE"
     ;;
   *)

@@ -519,6 +519,7 @@ void console_rp2040()
       }
       cart_name[MAX_DIR_NAME_SIZE-1] = '\0';
       printf("Write ROM start xmodem transfer now \n");
+
       cart_size = xmodemReceive(upload_memory, sizeof(upload_memory));
       if (cart_size <= 0)
       {
@@ -535,10 +536,59 @@ void console_rp2040()
       }
       ret = write_cart_data(upload_memory, cart_size, slot);
       printf("Data written, crc 0x%04x \n", ret);
-      ret = validate_cart_data(slot, in, cart_size, 0, false);
+      ret = validate_cart_data(slot, cart_name, cart_size, 0, false);
       printf("Data validated, %d result\n", ret);
       printf("ROM-Slot %02d written\n", slot);
       break;
+
+   case 'W':   // Silent mode for writing ROM via Xmodem
+      
+      ret = readline(10000, cart_name, 3);
+     // printf("Read slot number: %s  , ret=%d\n", cart_name, ret);       
+      if (ret < 0)
+      {
+         printf("Failed to read slot number\n");
+         break;
+      }
+      slot = strtol(cart_name, NULL, 10);
+      if ((slot < 0) || (slot >=MAX_CART_NO))
+      {
+         printf("Invalid slot number\n");
+         break;
+      }
+      ret = readline(10000, cart_name, MAX_DIR_NAME_SIZE);
+      if (ret < 0)
+      {
+         printf("Failed to read ROM name\n");
+         break;
+      }
+      for (int i = 0; i < strlen(cart_name); i++)
+      {
+         cart_name[i] = (char)toupper((unsigned char)cart_name[i]);
+      }
+      cart_name[MAX_DIR_NAME_SIZE-1] = '\0';
+      //printf("Read ROM name: %s  , ret=%d\n", cart_name, ret);       
+      cart_size = xmodemReceive(upload_memory, sizeof(upload_memory));
+      if (cart_size <= 0)
+      {
+         printf("Xmodem transfer failed\n");
+         break;
+      }
+
+      sleep_ms(500); // give some time for the prompt to be sent before waiting for input
+      //printf("\n\nUpload complete, %d bytes received\n", cart_size);
+      // Check if the cart size is valid for the selected slot
+      if (!check_cart_slot_size(slot, cart_size))
+      {
+         break; // Nope
+      }
+      ret = write_cart_data(upload_memory, cart_size, slot);
+      //printf("Data written, crc 0x%04x \n", ret);
+      ret = validate_cart_data(slot, cart_name, cart_size, 0, false);
+      //printf("Data validated, %d result\n", ret);
+      //printf("ROM-Slot %02d written\n", slot);
+
+
    case 'i':
       print_cart_dir();
       break;

@@ -12,4 +12,6 @@ void getaline_prompt( const char *prompt );
 void getaline_fatal( const char *fmt, ... );
 char *getaline();
 
+int readline(int timeout, char *buffer, int buflen);
+
 #endif
