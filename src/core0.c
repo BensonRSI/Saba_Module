@@ -758,7 +758,7 @@ void console_run()
          msLastResetTime = msCurrentResetTime;
 
          memcpy(&memory[0x0800], upload_memory, EMULATED_MEMSIZE - 0x800); // restore ROM to default
-         memset(&memory[0x2800], 0x00, 0x400);                             // clear RAM to 0x00
+         memset(&memory[0x2800], 0x00, 0x800);                             // clear RAM to 0x00
        //  cart_dir_to_mem(); // restore cart directory to memory on reset , for test
          memset(&memory[0x0000], 0x00, 0x20);                              // clear IO-bank to 0x00
          timer_val_actual = 0xff;

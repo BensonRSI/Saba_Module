@@ -23,7 +23,7 @@ while [[ $# -gt 0 ]]; do
     --help|-h)
       ACTION="--help"
       ;;
-    *)
+    *) 
       echo "Unknown option: $1"
       echo "Use --setup to create the names file or --upload to start the transfer."
       exit 1

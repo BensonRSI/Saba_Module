@@ -26,8 +26,7 @@
 
 uint32_t cart_flash_offset[MAX_CART_NO];
 dir_entry local_dir;
-
-unsigned char config[CFG_CONFIG_SIZE];
+uint8_t local_buffer[FLASH_SECTOR_SIZE];
 
 // TODO : replace with well known table based function
 uint16_t crc16(uint8_t *p, uint8_t l)
@@ -42,12 +41,6 @@ uint16_t crc16(uint8_t *p, uint8_t l)
         crc = (crc << 8) ^ ((uint16_t)(x << 12)) ^ ((uint16_t)(x << 5)) ^ ((uint16_t)x);
     }
     return crc;
-}
-
-void clearDirEntries(void)
-{
-
-    memset(config, 0, CFG_CONFIG_SIZE - CFG_DIR_OFFSET);
 }
 
 uint8_t *getNextDirEntry(uint8_t *currentEntry)
@@ -128,9 +121,10 @@ bool is_cart_data_valid(int cart_no)
     dir_entry *cart_dir_entry = get_cart_dir_entry(cart_no);
 
     if (cart_dir_entry->valid == 0x28)
-    {
+    {        
         return true;
     }
+   // printf("Cart %d data is invalid cart_dir_entry->valid = 0x%02X\n", cart_no, cart_dir_entry->valid);
     return false;
 }
 
@@ -149,15 +143,15 @@ uint32_t get_cart_size(int cart_no)
 }
 
 uint32_t get_cart_flash_size(int cart_no){
-    if ((cart_no >= 0) && (cart_no <= CART_SLOT_64K_MAX))
+    if ((cart_no >= 0) && (cart_no < CART_SLOT_64K_MAX))
     {
         return CART_SLOT_64K_SIZE;
     }
-    else if ((cart_no >= 4) && (cart_no <= CART_SLOT_8K_MAX))
+    else if ((cart_no >= CART_SLOT_64K_MAX) && (cart_no < CART_SLOT_8K_MAX))
     {
         return CART_SLOT_8K_SIZE;
     }
-    else if ((cart_no >= CART_SLOT_4K_MIN) && (cart_no < MAX_CART_NO))
+    else if ((cart_no >= CART_SLOT_8K_MAX) && (cart_no < MAX_CART_NO))
     {
         return CART_SLOT_4K_SIZE;
     }
@@ -166,7 +160,7 @@ uint32_t get_cart_flash_size(int cart_no){
 
 bool check_cart_slot_size(int cart_no, uint32_t cart_size)
 {
-    if ((cart_no >= 0) && (cart_no <= CART_SLOT_64K_MAX))
+    if ((cart_no >= 0) && (cart_no < CART_SLOT_64K_MAX))
     {
         if (cart_size > CART_SLOT_64K_SIZE)
         {
@@ -174,7 +168,7 @@ bool check_cart_slot_size(int cart_no, uint32_t cart_size)
             return false;
         }
     }
-    else if ((cart_no >= 4) && (cart_no <= CART_SLOT_8K_MAX))
+    else if ((cart_no >= CART_SLOT_64K_MAX) && (cart_no < CART_SLOT_8K_MAX))
     {
         if (cart_size > CART_SLOT_8K_SIZE)
         {
@@ -182,7 +176,7 @@ bool check_cart_slot_size(int cart_no, uint32_t cart_size)
             return false;
         }
     }
-    else if ((cart_no >= CART_SLOT_4K_MIN) && (cart_no < MAX_CART_NO))
+    else if ((cart_no >= CART_SLOT_8K_MAX) && (cart_no < MAX_CART_NO))
     {
         if (cart_size > CART_SLOT_4K_SIZE)
         {
@@ -198,7 +192,6 @@ bool validate_cart_data(int cart_no, const char *name, uint32_t size, uint16_t c
 
     assert(cart_no <= MAX_CART_NO);
     // invalidate_cart_data(cart_no);
-    uint8_t local_buffer[FLASH_SECTOR_SIZE];
 
     local_dir.valid = 0x28;
     local_dir.size = size;
@@ -215,7 +208,7 @@ bool validate_cart_data(int cart_no, const char *name, uint32_t size, uint16_t c
     // Get copy of direntry page, update it and write it back. We cannot write only the entry, because we can only write in page size steps
     memcpy(local_buffer, (uint8_t *)(FLASH_DATA_OFFSET + XIP_BASE), FLASH_SECTOR_SIZE);
     // memset(local_buffer, 0, FLASH_SECTOR_SIZE);
-    memcpy(local_buffer + (CFG_DIR_OFFSET * cart_no), &local_dir, sizeof(dir_entry));
+    memcpy(&local_buffer [CFG_DIR_OFFSET * cart_no], &local_dir, sizeof(dir_entry));
     erase_flash(FLASH_DATA_OFFSET, FLASH_SECTOR_SIZE);
     program_flash(FLASH_DATA_OFFSET, local_buffer, FLASH_SECTOR_SIZE);
     return true;
@@ -253,13 +246,16 @@ int init_flash_store()
     for (int i = 0; i < MAX_CART_NO; i++)
     {
         cart_flash_offset[i] = current_offset;
-        if (i <= CART_SLOT_64K_MAX)
+        if (i < CART_SLOT_64K_MAX)
             current_offset += CART_SLOT_64K_SIZE;
-        else if (i <= CART_SLOT_8K_MAX)
+        else if (i < CART_SLOT_8K_MAX)
             current_offset += CART_SLOT_8K_SIZE;
         else
             current_offset += CART_SLOT_4K_SIZE;
     }
+    printf("Initialized flash store with current offset: 0x%08x\n", current_offset);
+
+   // erase_flash(FLASH_DATA_OFFSET, FLASH_SECTOR_SIZE);
 
     return MAX_CART_NO;
 }
